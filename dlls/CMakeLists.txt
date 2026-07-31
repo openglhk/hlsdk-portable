@@ -138,6 +138,8 @@ set (SVDLL_SOURCES
 	tentacle.cpp
 	triggers.cpp
 	trigger_sequence.cpp
+	trigger_freezeplayer.cpp
+	czds_sequence.cpp
 	tripmine.cpp
 	turret.cpp
 	util.cpp

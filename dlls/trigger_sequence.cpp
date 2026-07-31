@@ -2,60 +2,7 @@
 #include "util.h"
 #include "cbase.h"
 #include "saverestore.h"
-#include <string>
-#include <map>
-
-// =========================================================================
-// 1. 根據 Ghidra 偵錯符號精準還原的結構體與自訂類別宣告
-// =========================================================================
-
-struct clientMessage_s {
-	float x;
-	float y;
-	float holdtime;
-	float fadein;
-	float fadeout;
-	float fxtime;
-	int effect;
-	byte r1, g1, b1, a1;
-	byte r2, g2, b2, a2;
-	char* pMessage;
-};
-
-struct sequenceCommandLine_s {
-	float                  delay;
-	char*                  fireTargetNames;
-	char*                  killTargetNames;
-	clientMessage_s        clientMessage;
-	int                    textChannel;
-	char*                  soundFileName;
-	char*                  speakerName;
-	char*                  listenerName;
-	int                    repeatCount;
-	sequenceCommandLine_s* nextCommandLine;
-};
-
-struct sequenceEntry_s {
-	sequenceCommandLine_s* firstCommand;
-};
-
-// 偽造的全域序列管理器，用來在本地讀取 sequences/*.seq，繞過不存在的引擎成員 pfnSequenceGet
-class CZDS_SequenceManager
-{
-	private:
-	static std::map<std::string, sequenceEntry_s*> m_SequenceMap;
-	public:
-	static void LoadAllSequences() {
-		// TODO: 可以在此加入實作 std::ifstream 讀取文字檔邏輯
-	}
-	static sequenceEntry_s* GetSequence(const char* name) {
-		if (!name) return nullptr;
-		if (m_SequenceMap.find(name) != m_SequenceMap.end()) return m_SequenceMap[name];
-		return nullptr;
-	}
-};
-std::map<std::string, sequenceEntry_s*> CZDS_SequenceManager::m_SequenceMap;
-
+#include "czds_sequence.h"
 
 class CTriggerSequence : public CBaseDelay
 {
@@ -99,10 +46,6 @@ class CTriggerSequence : public CBaseDelay
 
 LINK_ENTITY_TO_CLASS( trigger_sequence, CTriggerSequence );
 
-// =========================================================================
-// 2. 成員方法實作（100% 對照原廠二進位邏輯還原）
-// =========================================================================
-
 TYPEDESCRIPTION CTriggerSequence::m_SaveData[] =
 {
 	DEFINE_ARRAY( CTriggerSequence, m_sequenceEntryName, FIELD_CHARACTER, 256 ),
@@ -122,13 +65,13 @@ CTriggerSequence::CTriggerSequence()
 	m_caller = nullptr;
 	m_useType = USE_OFF;
 	m_isBusy = 0;
-	deathfadedelay = 2.0f;
-	fadespeed = 7;
-	shotPlayerRecently = 0;
-	shotPlayerEver = 0;
-	shotConeTime = 0.0f;
-	leapConeFromFull = 0;
-	m_classtype = 0;
+	//deathfadedelay = 2.0f;
+	//fadespeed = 7;
+	//shotPlayerRecently = 0;
+	//shotPlayerEver = 0;
+	//shotConeTime = 0.0f;
+	//leapConeFromFull = 0;
+	//m_classtype = 0;
 	memset(m_sequenceEntryName, 0, sizeof(m_sequenceEntryName));
 	m_sequenceStartTime = 0.0f;
 	m_value = 0.0f;
@@ -268,29 +211,47 @@ void CTriggerSequence::ExecuteTextMessage( clientMessage_s *message, int textCha
 		if (hudParms.holdTime == -1.0f) {
 			hudParms.holdTime = (float)strlen(message->pMessage) * 0.05f + 1.0f;
 		}
-		UTIL_HudMessageAll(&hudParms, message->pMessage);
+		UTIL_HudMessageAll(hudParms, message->pMessage);
 	}
 }
 
 void CTriggerSequence::ExecuteSoundOrSpeech(char *soundName, char *speakerName, char *listenerName, float duration)
 {
-	if (soundName == nullptr) return;
-	if (speakerName != nullptr && strcasecmp(speakerName, "none") != 0) {
-		CBaseEntity *pSpeaker = UTIL_FindEntityByTargetname(nullptr, speakerName);
-		if (pSpeaker != nullptr) {
-			CBaseMonster *pMonster = pSpeaker->MyMonsterPointer();
-			if (pMonster != nullptr && pev != nullptr) {
-				CBaseEntity *pListener = UTIL_FindEntityGeneric(listenerName, &pev->origin, 4096.0f);
-				// ?? 提示：如果 SDK 的 CBaseMonster 中沒有 PlayScriptSpeech，可改用 EMIT_SOUND_DYN 替代：
-				// EMIT_SOUND_DYN(pSpeaker->edict(), CHAN_VOICE, soundName, 1.0, ATTN_NORM, 0, PITCH_NORM);
-				pMonster->PlayScriptSpeech(soundName, duration, 1.0f, 0.8f, 1, pListener);
-				return;
-			}
-		}
-		return;
-	}
-	if (pev != nullptr) SENTENCEG_PlayRndSz(pev->pContainingEntity, soundName, 1.0f, 0.0f, 0, 100);
+    if (soundName == nullptr)
+        return;
+
+    // 1. 檢查是否有指定 NPC（且名字不能是 "none"）
+    if (speakerName != nullptr && strcasecmp(speakerName, "none") != 0) 
+    {
+        // 在地圖中搜尋說話者 NPC 實體
+        CBaseEntity *pSpeaker = UTIL_FindEntityByTargetname(nullptr, speakerName);
+        if (pSpeaker != nullptr) 
+        {
+            // ?? 完美替代方案：直接使用標準引擎的語音播放系統，並精確綁定在該 NPC 的 edict 上
+            // 這樣在 3D 空間中，聲音就會真正從這個 NPC 的身體位置發出來
+            if (soundName[0] == '!') {
+                // 如果是 '!' 開頭，代表它是 sentences.txt 裡面的語音句（Sentence）
+                SENTENCEG_PlaySequentialSz(pSpeaker->edict(), soundName, 1.0f, ATTN_NORM, 0, PITCH_NORM, 0, 0);
+            } else {
+                // 如果是普通的 .wav 音效檔案路徑
+                EMIT_SOUND_DYN(pSpeaker->edict(), CHAN_VOICE, soundName, 1.0f, ATTN_NORM, 0, PITCH_NORM);
+            }
+            return;
+        }
+        return; // 若地圖指定了說話 NPC 卻找不到，則遵循原廠邏輯直接中斷
+    }
+
+    // 2. Fallback：若腳本無 NPC 或設定為 "none"，改走 trigger_sequence 實體自身的環境全域廣播
+    if (pev != nullptr) 
+    {
+        if (soundName[0] == '!') {
+            SENTENCEG_PlayRndSz(pev->pContainingEntity, soundName, 1.0f, 0.0f, 0, 100);
+        } else {
+            EMIT_SOUND_DYN(pev->pContainingEntity, CHAN_BODY, soundName, 1.0f, ATTN_NONE, 0, PITCH_NORM);
+        }
+    }
 }
+
 void CTriggerSequence::ExecuteSequenceCommand( sequenceCommandLine_s *command )
 {
 	if ( command == nullptr ) return;

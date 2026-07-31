@@ -449,11 +449,13 @@ LINK_ENTITY_TO_CLASS( worldspawn, CWorld )
 #define SF_WORLD_FORCETEAM	0x0004		// Force teams
 
 extern DLL_GLOBAL BOOL		g_fGameOver;
+extern "C" void CZDS_LoadSequences_Hook();
 
 void CWorld::Spawn( void )
 {
-	g_fGameOver = FALSE;
-	Precache();
+    g_fGameOver = FALSE;
+    CZDS_LoadSequences_Hook();
+    Precache(); 
 }
 
 void CWorld::Precache( void )
