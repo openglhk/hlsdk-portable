@@ -142,6 +142,7 @@ set (SVDLL_SOURCES
 	trigger_hud.cpp
 	trigger_endmission.cpp
 	czds_sequence.cpp
+	env_liveammoshooter.cpp
 	tripmine.cpp
 	turret.cpp
 	util.cpp
