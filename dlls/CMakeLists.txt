@@ -139,6 +139,8 @@ set (SVDLL_SOURCES
 	triggers.cpp
 	trigger_sequence.cpp
 	trigger_freezeplayer.cpp
+	trigger_hud.cpp
+	trigger_endmission.cpp
 	czds_sequence.cpp
 	tripmine.cpp
 	turret.cpp

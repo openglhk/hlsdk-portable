@@ -1,11 +1,7 @@
 #include "extdll.h"
 #include "util.h"
 #include "cbase.h"
-#include "player.h" // ?? 修正 4-7：必須包含 player.h 才能讓編譯器認得 CBasePlayer 的成員 (pev->flags 等)
-
-// =========================================================================
-// 1. CTriggerFreezePlayer 類別宣告
-// =========================================================================
+#include "player.h"
 
 // ?? 修正 1：Android NDK 編譯器提示將 CBaseTrigger 改為標準的 CBaseToggle
 // 在 hlsdk-portable 中，Brush 觸發器物件最安全的直接基底類別是 CBaseToggle
@@ -22,10 +18,6 @@ public:
 };
 
 LINK_ENTITY_TO_CLASS( trigger_freezeplayer, CTriggerFreezePlayer );
-
-// =========================================================================
-// 2. 誕生初始化 (Spawn)
-// =========================================================================
 
 void CTriggerFreezePlayer::Spawn( void )
 {
@@ -47,10 +39,6 @@ void CTriggerFreezePlayer::Spawn( void )
     // 動態綁定 Use 函式
     SetUse( &CTriggerFreezePlayer::FreezeUse );
 }
-
-// =========================================================================
-// 3. 定身/解凍狀態切換控制 (FreezeUse)
-// =========================================================================
 
 void CTriggerFreezePlayer::FreezeUse(CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value)
 {

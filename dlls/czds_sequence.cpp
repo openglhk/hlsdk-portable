@@ -4,10 +4,8 @@
 #include <sstream>
 #include <algorithm>
 
-// 初始化靜態全域快取
 std::map<std::string, sequenceEntry_s*> CZDS_SequenceManager::m_SequenceMap;
 
-// 輔助函式：修剪字串兩端的空白與引號
 static std::string CleanString(std::string str) {
     str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char ch) { return !std::isspace(ch); }));
     str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), str.end());
@@ -17,10 +15,8 @@ static std::string CleanString(std::string str) {
     return str;
 }
 
-// 實作動態地圖腳本加載
 void CZDS_SequenceManager::LoadAllSequences() 
 {
-    // 清空舊快取，防記憶體洩漏
     for (auto& pair : m_SequenceMap) {
         sequenceEntry_s* entry = pair.second;
         if (entry) {
@@ -133,7 +129,6 @@ void CZDS_SequenceManager::LoadAllSequences()
     ALERT(at_console, "CZDS_Parser: 地圖 %s 的劇本加載成功！\n", mapName.c_str());
 }
 
-// 獲取快取指標
 sequenceEntry_s* CZDS_SequenceManager::GetSequence(const char* name) 
 {
     if (!name) return nullptr;
