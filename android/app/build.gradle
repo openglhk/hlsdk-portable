@@ -6,7 +6,7 @@ apply plugin: 'com.android.application'
 
 android {
     ndkVersion '26.1.10909125'
-    namespace 'com.example.hlsdk'
+    namespace 'su.xash.hlsdk'
 
     defaultConfig {
         applicationId 'com.example.hlsdk'

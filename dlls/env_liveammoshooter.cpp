@@ -3,14 +3,11 @@
 #include "cbase.h"
 #include "saverestore.h"
 
-// =========================================================================
-// 1. CEnvLiveAmmoShooter 類別宣告 (包含完全還原的 CreateGib 工廠函式)
-// =========================================================================
-
 class CEnvLiveAmmoShooter : public CBaseDelay
 {
 public:
     void Spawn( void ) override;
+	void Precache( void ) override;
     void KeyValue( KeyValueData *pkvd ) override;
     void Use( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value ) override;
     
@@ -37,10 +34,6 @@ private:
 
 LINK_ENTITY_TO_CLASS( env_liveammoshooter, CEnvLiveAmmoShooter );
 
-// =========================================================================
-// 2. 存讀檔映射表 (9 個欄位對齊)
-// =========================================================================
-
 TYPEDESCRIPTION CEnvLiveAmmoShooter::m_SaveData[] =
 {
     DEFINE_FIELD( CEnvLiveAmmoShooter, m_iGibModelIndex, FIELD_INTEGER ),
@@ -65,28 +58,14 @@ int CEnvLiveAmmoShooter::Restore( CRestore &restore ) {
     return restore.ReadFields( "CGibShooter", this, m_SaveData, sizeof(m_SaveData) / sizeof(m_SaveData) );
 }
 
-// =========================================================================
-// 3. 資源預載入 (Precache)
-// =========================================================================
-
-extern int g_Language; 
-
 void CEnvLiveAmmoShooter::Precache( void )
 {
     if ( pev->model ) {
         m_iGibModelIndex = PRECACHE_MODEL( (char*)STRING(pev->model) );
         return;
     }
-    if ( g_Language != 1 ) {
-        m_iGibModelIndex = PRECACHE_MODEL( "models/hgibs.mdl" );
-    } else {
-        m_iGibModelIndex = PRECACHE_MODEL( "models/germanygibs.mdl" );
-    }
+    m_iGibModelIndex = PRECACHE_MODEL( "models/hgibs.mdl" );
 }
-
-// =========================================================================
-// 4. 核心實體生成工廠：100% 對照原廠 DWARF 暴力過濾與隨機 Body 還原 (CreateGib)
-// =========================================================================
 
 CBaseEntity* CEnvLiveAmmoShooter::CreateGib( void )
 {
