@@ -141,10 +141,15 @@ set (SVDLL_SOURCES
 	trigger_freezeplayer.cpp
 	trigger_hud.cpp
 	trigger_endmission.cpp
+	trigger_objective.cpp
+	trigger_changekeyvalue.cpp
 	czds_sequence.cpp
 	env_liveammoshooter.cpp
-	ct_swat.cpp
+	cterrorist.cpp
+	terrorist.cpp
 	ct_repel.cpp
+	hostage.cpp
+	hostage_rescue.cpp
 	genericitem.cpp
 	tripmine.cpp
 	turret.cpp

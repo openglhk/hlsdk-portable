@@ -1,237 +1,46 @@
-#pragma once
-#include "extdll.h"
-#include "util.h"
-#include "cbase.h"
-#include "monsters.h"
-#include "squadmonster.h" // 確保小隊怪物基底類別引入
-#include "schedule.h"
-
-// 這些指針通常由你在實作 AI 節點（Schedules）時定義
-extern Schedule_t slCTIdleEyecontact;
-extern Schedule_t slCTCombatFace;
-extern Schedule_t slCTVictoryDance;
-extern Schedule_t slCTFaceTarget;
-extern Schedule_t slCTFollow;
-extern Schedule_t slCTTakeCover;
-extern Schedule_t slCTTakeCoverFromBestSound;
-extern Schedule_t slCTRangeAttack1A;
-extern Schedule_t slCTRangeAttack1B;
-extern Schedule_t slCTRangeAttack1C;
-extern Schedule_t slCTRangeAttackMG2;
-extern Schedule_t slCTRangeAttack2;
-extern Schedule_t slCTCombatFail;
-extern Schedule_t slCTFail;
-extern Schedule_t slCTWander;
-extern Schedule_t slCTSuppress;
-extern Schedule_t slCTSignalSuppress;
-extern Schedule_t slCTEstablishLineOfFire;
-extern Schedule_t slCTHideReload;
-extern Schedule_t slCTSweep;
-extern Schedule_t slCTFoundEnemy;
-extern Schedule_t slCTRepel;
-extern Schedule_t slCTRepelAttack;
-extern Schedule_t slCTRepelLand;
-extern Schedule_t slCTWaitInCover;
-extern Schedule_t slCTInSmoke;
-extern Schedule_t slCTFlashed;
-extern Schedule_t slCTSniperAttack;
-extern Schedule_t slCTSniperTakeShot;
-extern Schedule_t slCTCornerCoverNode;
-extern Schedule_t slCTDuckCoverNode;
-extern Schedule_t slCTDuckNodeAttack;
-extern Schedule_t slCTCloseIn;
-extern Schedule_t slCTCornerNodeAttack;
-extern Schedule_t slCTFiringPause;
-extern Schedule_t slCTStopFollowing;
-extern Schedule_t slCTWaitCrouched;
-// 完美對齊 DWARF 原生符號：指向 sentences.txt 語音鍵名的全局字串陣列
-extern const char* pTerroristSentences[]; 
+#include "cterrorist.h"
 
 TYPEDESCRIPTION CMonsterCtSwat::m_SaveData[] =
 {
+    // ?? 1~5: 兵種與行為核心變數
     DEFINE_FIELD( CMonsterCtSwat, m_ctBehavior, FIELD_INTEGER ),
     DEFINE_FIELD( CMonsterCtSwat, m_behaviorType, FIELD_INTEGER ),
-	DEFINE_FIELD( CMonsterCtSwat, m_useTarget, FIELD_STRING ), 
-    // 這裡會依序將 scheduleTable 陣列以及 m_flNextGrenadeCheck 等 28 個需要進存檔的私有變數全部定義進來
-    // 確保陣列的 size 剛好等於 28 (0x1c)
-};
+    DEFINE_FIELD( CMonsterCtSwat, m_canWander, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CMonsterCtSwat, m_wanderTime, FIELD_TIME ),
+    DEFINE_FIELD( CMonsterCtSwat, m_wanderOrigin, FIELD_POSITION_VECTOR ),
 
-// 記憶體對齊結構體
-struct ScheduleEntry {
-    float activeFlag;      
-    float percentChance;
-	float normalizedChance;
-};
+    // ?? 6~9: 地圖事件、多國語言與變體分流
+    DEFINE_FIELD( CMonsterCtSwat, m_useTarget, FIELD_STRING ), // 4位元組字串池整數索引
+    DEFINE_FIELD( CMonsterCtSwat, m_ctType, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_language, FIELD_STRING ),
+    DEFINE_FIELD( CMonsterCtSwat, m_bFollowStuck, FIELD_BOOLEAN ),
 
+    // ?? 10~15: 戰術無線電與語音排隊系統
+    DEFINE_FIELD( CMonsterCtSwat, m_iSentence, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_flStopTalkTime, FIELD_TIME ),
+    DEFINE_FIELD( CMonsterCtSwat, m_flStareTime, FIELD_TIME ),
+    DEFINE_FIELD( CMonsterCtSwat, m_flNextPainTime, FIELD_TIME ),
+    DEFINE_FIELD( CMonsterCtSwat, m_flNextGrenadeCheck, FIELD_TIME ),
+    DEFINE_FIELD( CMonsterCtSwat, m_fThrowGrenade, FIELD_BOOLEAN ),
 
-// 閒置對話狀態旗標：0=無話題, 1=拋出檢查, 2=拋出疑問
-static int g_fCTQuestion = 0; 
+    // ?? 16~19: 關卡外觀、無敵標記與 3D 黃黃銅彈殼索引
+    DEFINE_FIELD( CMonsterCtSwat, m_head, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_invulnerable, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CMonsterCtSwat, m_iBrassShell, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_iShotgunShell, FIELD_INTEGER ),
 
-// 前置宣告潛行觸發器類別，防止編譯器報錯
-class CTriggerStealth {
-public:
-    static BOOL IsPlayerHidden( CTriggerStealth *pTrigger );
-};
+    // ?? 20~23: 戰術道具受干擾熔斷狀態
+    DEFINE_FIELD( CMonsterCtSwat, m_iWeaponEffectType, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_bWeaponEffectActive, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CMonsterCtSwat, taskFailCount, FIELD_FLOAT ),
+    DEFINE_FIELD( CMonsterCtSwat, m_fFirstEncounter, FIELD_BOOLEAN ),
 
-class CMonsterCtSwat : public CSquadMonster
-{
-public:
-    // 構造函式
-    CMonsterCtSwat();
-
-    // 基礎虛擬方法覆寫 (Engine / Base Framework 回調)
-    void Spawn( void ) override;
-    void KeyValue( KeyValueData *pkvd ) override;
-	int Save( CSave &save ) override;
-    int Restore( CRestore &restore ) override;
-    int ObjectCaps( void ) override;
-	void Touch( CBaseEntity *pOther ) override; 
-	void UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
-    void Precache( void ) override; 
-    int  Classify( void ) override { return m_classtype; }
-    int ISoundMask( void ) override;
-    void CheckAmmo( void ) override;
-    void DeathSound( void ) override;
-    void PainSound( void ) override;
-	int  TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType ) override;
-	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType ) override;
-    void PlayScriptedSentence( char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener ) override;
-    void Talk( float flDuration ) override; 
-    void IdleSound( void ) override;
-    void GibMonster( void ) override;
-	Vector GetGunPosition( void ) override;
-    void IdleHeadTurn( Vector *vecFriend ) override;
-    void ResetHeadWatch( void );
-    // 戰術與攻擊評估方法覆寫
-    BOOL CheckMeleeAttack1( float flDot, float flDist ) override;
-    BOOL CheckRangeAttack1( float flDot, float flDist ) override;
-    BOOL CheckRangeAttack2( float flDot, float flDist ) override;
-    int  CanPlaySequence( BOOL fDisregardMonsterState, int interruptLevel ) override;
-    void FollowerUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value ) override;
-	void StartFollowing( CBaseEntity *pLeader ) override;
-	void StopFollowing( BOOL clearSchedule ) override; 
-	void HandleAnimEvent( MonsterEvent_t *pEvent ) override;
-    int LookupActivity( int activity ) override;
-    int LookupActivityHeaviest( int activity ) override;
-	void SetActivity( Activity NewActivity ) override;
-	void SetYawSpeed( void ) override;
-    void SpawnInit( void ); 
-    void ActivateTableEntry( int entry );
-    void ClearScheduleTableFlags( void );
-    void InitScheduleTable( void );
-    void SetupBehaviors( int type );
-	void SetupWeapons( void );
-	bool ValidateActivation( int entry );
-    BOOL FOkToSpeak( void );
-	BOOL FCanCheckAttacks( void ) override;
-    BOOL IsPlayerHidden( void );
-    BOOL CanFollow( void ); 
-    BOOL IsTalking( void ) override;
-	void PrescheduleThink( void ) override;
-	Schedule_t* GetSchedule( void ) override;
-	Schedule_t* GetScheduleOfType( int Type ) override;
-	Schedule_t* ScheduleFromName( const char *pName ) override;
-	void StartTask( Task_t *pTask ) override;
-    void RunTask( Task_t *pTask ) override;
-	
-	
-private:
-	int  SetActivityPistolBase( Activity NewActivity );
-    int  SetActivityShotgunBase( Activity NewActivity );
-    int  SetActivityAutomaticBase( Activity NewActivity );
-    int  SetActivitySniperBase( Activity NewActivity );
-    int  SetActivityLAWBase( Activity NewActivity );
-    int  SetActivityGrenadeBase( Activity NewActivity );
-    float GetActivityYawSpeed( Activity NewActivity );
-    static TYPEDESCRIPTION m_SaveData[];
-    int  GetBehaviorType( void );
-    int  GetForcedTargetSchedule( void );
-    int  GetFlyingSchedule( void );
-	int  GetHearingSchedule( void );
-    int  GetScheduleFromTable( void );
-    // 建議宣告在 LaserGlowOn 或者是 LaserGlowOff 的正下方
-    void LaserGlowOn( void );
-    void LaserGlowOff( void );
-    void SetupLaserGlow( void ); // ?? 正式補上這一行
-
-    void LimitFollowers( CBaseEntity *pPlayer, int maxFollowers );
-    void HandleSpeaking( int schedule );
-    void JustSpoke( float nextSpeakTime );
-	void SpeakSentence( void );
-	int  GetWeaponEffectSchedule( void );
-    Schedule_t* HandleFollowing( void );
-    int            m_ctBehavior;       
-    int            m_behaviorType;     // GetBehaviorType 兜底用途的屬性
-    
-    // ?? 記憶體核心對齊：必須精確挨在 m_flNextGrenadeCheck 之前！
-    ScheduleEntry  scheduleTable[74];  
-
-    float          m_flNextGrenadeCheck; // 狀態機清理的終點邊界
-    float          m_flNextPainTime;
-    int            m_iSentence;
-    int            m_fFirstEncounter;
-    float          m_healthMultiplier; 
-
-    int            m_ctType;         
-    string_t       m_language;       
-    int            m_cantMove;       
-
-    CBaseEntity*   m_pBeam;          
-    CBaseEntity*   m_pLaserGlow;      
-
-    int            m_voicePitch;
-    int            m_iBrassShell;
-    int            m_iShotgunShell;
-    unsigned short m_usFireM60;
-    unsigned short m_usFireUSP;
-    unsigned short m_usFireAK47;
-    unsigned short m_usFireM4A1;
-    unsigned short m_usFireScout;
-    unsigned short m_usFireMAC10;
-    unsigned short m_usFireShotgun;
-    unsigned short m_usFireMP5;
-
-    CBaseEntity* Kick( void );
-	void ShootPistol( void );
-    void ShootShotgun( void );
-    void ShootAssaultRifle( void );
-    void ShootMachineGun( void );
-    void ShootSniperRifle( void );
-    void ShootLAW( void );
-    void ShootSMG( void );
-    void ShootMP5( void );
-	
-    // =========================================================================
-    // ?? 逆向解鎖並完美封裝在 private 的新變數欄位
-    // =========================================================================
-    BOOL           m_fThrowGrenade;    // CheckRangeAttack2 扔雷開關
-    Vector         m_vecTossVelocity;  // CheckRangeAttack2 拋射速度向量
-    int            m_classtype;        // ?? 完美補回：Classify 所需的陣營變數 (預設16)
-    string_t       m_forcedTarget;     // ?? 完美補回：GetForcedTargetSchedule 所需的強制目標
-	BOOL           m_bStanding;
-	float          m_flStopTalkTime;   // ?? 新增：強行說話截止計時器
-    float          m_wanderTime;       // ?? 新增：隨機自主遊蕩冷卻計時器
-    BOOL           m_canWander;        // ?? 新增：是否允許自主隨機走動的開關
-	Vector         m_wanderOrigin;     // 自主巡邏漫步的原點
-    BOOL           justShotFlag;       // 標記剛剛是否開過槍
-    float          m_fPreferedRange;   // 兵種期望的最佳交戰距離
-    int            GetScheduleFromTable( void ); 
-    float          taskFailCount;      
-    Schedule_t*    HandleIdleHeadWatch( void ); 
-    BOOL           m_bFollowStuck;     // ?? 終極補全：用於標記跟隨尋路被卡住的狀態旗標
-    int            m_iWeaponEffectType;   // 記錄受到的戰術道具類型 (4=閃光彈, 7=煙霧彈)
-    BOOL           m_bWeaponEffectActive; // 標記目前該道具效果是否正處於激活硬直狀態
-	int            m_cClipSize;        // 當前主武器的滿彈夾容量
-    string_t       m_dropItem;         // 死亡時掉落的裝備名稱
-    float          m_dropChance;       // 裝備掉落機率 (0.0~1.0)
-	float          m_flStareTime;
-	float          m_laserBrightness;  // 儲存雷射線的動態渲染亮度 (預設 64.0)
-    float          m_glowBrightness;   // 儲存目標點紅點精靈的動態渲染亮度 (預設 255.0)
-    float          m_flLastEnemySightTime; // ?? 補上這行：紀錄敵人最後被目擊的時間戳
-    BOOL           m_fEnemyEluded;         // ?? 補上這行：標記目前?人是否已?小隊視野中逃脫丟失
-	Vector         m_weaponAccuracy;
-	string_t       m_useTarget; // ?? 完美保留這行，100% 通過 HLSDK 編譯！
-	static Schedule_t *m_scheduleList[41];
+    // ?? 24~28: 武器彈藥基數與動態彈道精確度向量
+    DEFINE_FIELD( CMonsterCtSwat, m_cClipSize, FIELD_INTEGER ),
+    DEFINE_FIELD( CMonsterCtSwat, m_dropItem, FIELD_STRING ),
+    DEFINE_FIELD( CMonsterCtSwat, m_dropChance, FIELD_FLOAT ),
+    DEFINE_FIELD( CMonsterCtSwat, m_fPreferedRange, FIELD_FLOAT ),
+    DEFINE_FIELD( CMonsterCtSwat, m_weaponAccuracy, FIELD_VECTOR ), // ?? 剛好第 28 個欄位！
 };
 
 LINK_ENTITY_TO_CLASS( monster_counter_terrorist_gign,     CMonsterCtSwat );
@@ -3462,79 +3271,90 @@ int CMonsterCtSwat::GetBehaviorType( void )
 
 void CMonsterCtSwat::FollowerUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
-    // 1. 如果正在執行劇情腳本，直接無視玩家互動
+    // 1. 劇情最高優先級熔斷：若目前正處於不可打斷的劇情動畫劇本中，直接攔截返回
     if ( m_MonsterState == MONSTERSTATE_SCRIPT )
     {
         return;
     }
 
-    // 2. 獲取 1 號玩家實體（主機玩家）
+    // 2. 獲取單人劇情關卡中的 1 號玩家實體物件
     edict_t *pPlayerEdict = INDEX_TO_ENT( 1 );
     if ( pPlayerEdict == nullptr || pPlayerEdict->pvPrivateData == nullptr )
     {
         pPlayerEdict = PEOFFSET( 0 );
     }
-    
     if ( pPlayerEdict == nullptr || pPlayerEdict->pvPrivateData == nullptr )
     {
         return;
     }
-    
     CBaseEntity *pPlayer = CBaseEntity::Instance( pPlayerEdict );
 
-    // 3. 地圖觸發器接管檢查
+    // =========================================================================
+    // ?? 階段 A：地圖特置事件觸發路由 (優先於隨行系統)
+    // =========================================================================
     if ( m_useTarget != 0 )
     {
         const char *pszTargetName = STRING( m_useTarget );
-        // 如果 target 設為 "none"，視為無效，否則直接觸發地圖目標並中斷跟隨邏輯
+        
+        // 完美還原 do-while 內聯循環：排除地圖製作者故意填寫 "none" 的特殊情況
         if ( pszTargetName != nullptr && strcasecmp( pszTargetName, "none" ) != 0 )
         {
+            // 觸發遠端目標地圖實體，不加入隨行，直接提前中斷退出
             FireTargets( pszTargetName, pActivator, this, useType, value );
             return;
         }
     }
 
-    // 4. 地圖 Spawnflags 檢查：如果勾選了 SF_MONSTER_NOT_USEABLE (256)，禁止互動
+    // 3. 不可招募審查：若地圖勾選了 SF_MONSTER_GAG (0x100) 旗標，拒絕任何 E 鍵歸隊
     if ( pev->spawnflags & 0x100 )
     {
         return;
     }
 
-    // 5. 判斷互動行為：停止跟隨 還是 開始跟隨
-    // 檢查目前是否有跟隨目標，且目標是玩家
+    // =========================================================================
+    // ??? 階段 B：動態隨行與狀態切換核心矩陣
+    // =========================================================================
+    
+    // 判定 1：若特警目前【已經】處於跟隨玩家的隨行模式中 (執行解除跟隨/原地駐守)
     if ( m_hTargetEnt != nullptr && m_hTargetEnt->IsPlayer() )
     {
-        // 進入【原地待命】分支
+        // 一鍵調用 StopFollowing(TRUE)，命令他停下腳步並清除計畫
         StopFollowing( TRUE );
+
+        // 播放反恐精英經典的原地駐守與警戒台詞組
         PlaySentence( "CT_WAIT", 0.8f, 0.8f, 0, m_voicePitch );
+        m_iSentence = -1;
+        CTalkMonster::g_talkWaitTime = gpGlobals->time + 1.0f; // 鎖定語音通道
     }
+    // 判定 2：若特警目前處於自由身 (執行招募入隊/歸隊跟隨)
     else
     {
-        // 進入【開始跟隨】分支
-        
-        // 激怒檢查：如果玩家攻擊過盟友 (bits_MEMORY_PROVOKED = 1)
-        if ( m_afMemory & 0x01 )
+        // ?? 忠誠度硬熔斷：若玩家之前惡意攻擊過特警 (bits_MEMORY_PROVOKED = 1)，拒絕跟隨
+        if ( m_afMemory & 1 ) // bits_MEMORY_PROVOKED
         {
             ALERT( at_console, "I'm not following you, you evil person!\n" );
             return;
         }
 
-        // 如果目前有敵人，將理想狀態設為警戒 (MONSTERSTATE_ALERT)
+        // 戰術大腦降級與防卡死重設：若身邊有敵人，優先切換至 ALERT 警惕模式靠攏玩家
         if ( m_hEnemy != nullptr )
         {
             m_IdealMonsterState = MONSTERSTATE_ALERT;
         }
 
-        // 設置跟隨目標為玩家，並刷新 AI 規劃
+        // 正式鎖定 1 號玩家為隨行主權目標
         m_hTargetEnt = pPlayer;
-        
-        // 清除特定的環境干擾旗標 (反編譯對應: & 0xefffffff)
-        m_afConditions &= ~bits_COND_LIGHT_VERSION; 
-        
+
+        // 無條件抹除身上之前積累的所有尋路被卡死負面旗標
+        m_afConditions &= ~bits_COND_TASK_FAILED; // & 0xefffffff
+
+        // 掐斷日常碎碎念動畫，逼迫大腦在下一訊號幀立即刷新 slCTFollow 計畫
         ClearSchedule();
-        
-        // 播放答應跟隨的語音
+
+        // ?? 高喊答應與誓死護航入隊台詞組！
         PlaySentence( "CT_OK", 0.8f, 0.8f, 0, m_voicePitch );
+        m_iSentence = -1;
+        CTalkMonster::g_talkWaitTime = gpGlobals->time + 1.0f;
     }
 }
 
