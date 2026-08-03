@@ -1,6 +1,3 @@
-#ifndef TERRORIST_H
-#define TERRORIST_H
-
 #include "extdll.h"
 #include "util.h"
 #include "cbase.h"
@@ -16,6 +13,7 @@ public:
     void KeyValue( KeyValueData *pkvd ) override;
     void SpawnInit( void );
 	void ActivateTableEntry( int entry );
+	bool ValidateActivation( int entry ); 
 	void ClearScheduleTableFlags( void ); 
 	int  CanPlaySequence( BOOL fDisregardMonsterState, int interruptLevel ) override;
 	BOOL CheckMeleeAttack1( float flDot, float flDist ) override;
@@ -23,22 +21,41 @@ public:
 	BOOL CheckRangeAttack2( float flDot, float flDist ) override;
 	Schedule_t* GetSchedule( void ) override;
 	Schedule_t* GetScheduleOfType( int Type ) override;
+	Schedule_t* ScheduleFromName( char *pName ) override;
 	void GibMonster( void ) override;
 	void HandleAnimEvent( MonsterEvent_t *pEvent ) override;
 	void IdleSound( void ) override;
 	void JustSpoke( float nextSpeakTime );
 	int  IRelationship( CBaseEntity *pTarget ) override;
 	int  ISoundMask( void ) override;
+	int  LookupActivity( int activity ) override;
+	int  LookupActivityHeaviest( int activity ) override;
 	BOOL FCanCheckAttacks( void ) override;
+	int  ObjectCaps( void ) override;
+	void SetYawSpeed( void ) override;
+	int  TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType ) override;
+	void TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType ) override;
+	void SetActivity( Activity NewActivity ) override;
+	void PainSound( void ) override;
+	void PlayScriptedSentence( char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener ) override;
+	void PrescheduleThink( void ) override;
+	void StartTask( Task_t *pTask ) override;
+	void RunTask( Task_t *pTask ) override;
 	Vector GetGunPosition( void ) override;
 	void DeathSound( void ) override;
     int  Classify( void ) override { return m_classtype; } 
     int  BloodColor( void ) override { return BLOOD_COLOR_RED; } 
-
-    int  Save( CSave &save ) override;
+	int  Save( CSave &save ) override;
     int  Restore( CRestore &restore ) override;
-
 private:
+	int  SetActivityPistolBase( Activity NewActivity );
+    int  SetActivityAutomaticBase( Activity NewActivity );
+    int  SetActivityShotgunBase( Activity NewActivity );
+    int  SetActivitySniperBase( Activity NewActivity );
+    int  SetActivityLAWBase( Activity NewActivity );
+    int  SetActivityGrenadeBase( Activity NewActivity );
+    int  SetActivityMeleeBase( Activity NewActivity );
+    int  SetActivityKamakaziBase( Activity NewActivity );
 	CBaseEntity* Kick( void );
     void ShootPistol( void );
     void ShootShotgun( void );
@@ -70,9 +87,12 @@ private:
     string_t       m_dropItem;           // 擊殺死後機率掉落的自定義實體武器名 (如 weapon_ak47)
     float          m_dropChance;         // 掉落機率折算加權面 (0.0f ~ 1.0f)
     Vector         m_wanderOrigin;       // 8方向隨機漫步逃逸原始幾何座標
+    float          m_laserBrightness;    // 🚀 100% 還原！雷射線實時渲染亮度 (64.0f)
+    float          m_glowBrightness;     // 🚀 100% 還原！槍口紅外線點精靈不透明度 (255.0f)
     int  GetBehaviorType( void );
     void SetupWeapons( void );
     void SetupBehaviors( int behaviorType );
+	void SetupLaserGlow( void );
 	int  GetBehaviorTypeSchedule( void );
 	int  GetFlyingSchedule( void );
 	int  GetForcedTargetSchedule( void );
@@ -80,10 +100,14 @@ private:
 	int  GetWeaponEffectSchedule( void );
 	int  GetScheduleFromTable( void );
 	void HandleSpeaking( int schedule );
+	void SpeakSentence( void );
 	void InitScheduleTable( void );
 	BOOL IsPlayerHidden( void );
     void SetupLaserGlow( void );
 	void LaserGlowOff( void );
+	void LaserGlowOn( void );
+	void SetHead( int headType );
+	void UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
 	void CheckAmmo( void );
 	BOOL FOkToSpeak( void );
     void UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
@@ -106,4 +130,55 @@ private:
     static TYPEDESCRIPTION m_SaveData[]; 
 };
 
-#endif // TERRORIST_H
+class CTerroristArctic : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};
+
+class CTerroristAsian : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};
+
+class CTerroristDesert : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};
+
+class CTerroristJungle : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};
+
+class CTerroristRepel : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void Spawn( void ) override;
+    void RepelUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value );
+
+public:
+    int m_iSpriteTexture;
+};
+
+class CTerroristRussian : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};
+
+class CTerroristUrban : public CTerrorist
+{
+public:
+    void Precache( void ) override;
+    void SpawnInit( void );
+};

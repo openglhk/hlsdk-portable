@@ -1,119 +1,319 @@
 #include "cterrorist.h"
 
-TYPEDESCRIPTION CMonsterCtSwat::m_SaveData[] =
-{
-    // ?? 1~5: 兵種與行為核心變數
-    DEFINE_FIELD( CMonsterCtSwat, m_ctBehavior, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_behaviorType, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_canWander, FIELD_BOOLEAN ),
-    DEFINE_FIELD( CMonsterCtSwat, m_wanderTime, FIELD_TIME ),
-    DEFINE_FIELD( CMonsterCtSwat, m_wanderOrigin, FIELD_POSITION_VECTOR ),
-
-    // ?? 6~9: 地圖事件、多國語言與變體分流
-    DEFINE_FIELD( CMonsterCtSwat, m_useTarget, FIELD_STRING ), // 4位元組字串池整數索引
-    DEFINE_FIELD( CMonsterCtSwat, m_ctType, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_language, FIELD_STRING ),
-    DEFINE_FIELD( CMonsterCtSwat, m_bFollowStuck, FIELD_BOOLEAN ),
-
-    // ?? 10~15: 戰術無線電與語音排隊系統
-    DEFINE_FIELD( CMonsterCtSwat, m_iSentence, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_flStopTalkTime, FIELD_TIME ),
-    DEFINE_FIELD( CMonsterCtSwat, m_flStareTime, FIELD_TIME ),
-    DEFINE_FIELD( CMonsterCtSwat, m_flNextPainTime, FIELD_TIME ),
-    DEFINE_FIELD( CMonsterCtSwat, m_flNextGrenadeCheck, FIELD_TIME ),
-    DEFINE_FIELD( CMonsterCtSwat, m_fThrowGrenade, FIELD_BOOLEAN ),
-
-    // ?? 16~19: 關卡外觀、無敵標記與 3D 黃黃銅彈殼索引
-    DEFINE_FIELD( CMonsterCtSwat, m_head, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_invulnerable, FIELD_BOOLEAN ),
-    DEFINE_FIELD( CMonsterCtSwat, m_iBrassShell, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_iShotgunShell, FIELD_INTEGER ),
-
-    // ?? 20~23: 戰術道具受干擾熔斷狀態
-    DEFINE_FIELD( CMonsterCtSwat, m_iWeaponEffectType, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_bWeaponEffectActive, FIELD_BOOLEAN ),
-    DEFINE_FIELD( CMonsterCtSwat, taskFailCount, FIELD_FLOAT ),
-    DEFINE_FIELD( CMonsterCtSwat, m_fFirstEncounter, FIELD_BOOLEAN ),
-
-    // ?? 24~28: 武器彈藥基數與動態彈道精確度向量
-    DEFINE_FIELD( CMonsterCtSwat, m_cClipSize, FIELD_INTEGER ),
-    DEFINE_FIELD( CMonsterCtSwat, m_dropItem, FIELD_STRING ),
-    DEFINE_FIELD( CMonsterCtSwat, m_dropChance, FIELD_FLOAT ),
-    DEFINE_FIELD( CMonsterCtSwat, m_fPreferedRange, FIELD_FLOAT ),
-    DEFINE_FIELD( CMonsterCtSwat, m_weaponAccuracy, FIELD_VECTOR ), // ?? 剛好第 28 個欄位！
-};
-
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_gign,     CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_gsg9,     CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_repel,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_sas,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_spetsnaz, CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_counter_terrorist_swat,     CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct,                         CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_dead,                    CMonsterCtSwat ); // 特殊：死屍/裝飾用 CT 兵
-LINK_ENTITY_TO_CLASS( monster_ct_repel,                   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_gign,     CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_gsg9,     CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_repel,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_sas,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_spetsnaz, CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_counter_terrorist_swat,     CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct,                         CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_dead,                    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_repel,                   CCounterTerrorist );
 
 // 2. GIGN (法國國家憲兵干預組) 全武器矩陣
-LINK_ENTITY_TO_CLASS( monster_ct_gign,              CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_assaultrifle,  CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_grenader,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_law,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_machinegun,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_mp5,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_pistol,        CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_shotgun,       CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_smg,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gign_sniperrifle,   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_ct_gign,              CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_assaultrifle,  CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_grenader,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_law,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_machinegun,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_mp5,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_pistol,        CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_shotgun,       CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_smg,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gign_sniperrifle,   CCounterTerrorist );
 
 // 3. GSG9 (德國邊防第九反恐部隊) 全武器矩陣
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9,              CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_assaultrifle,  CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_grenader,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_law,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_machinegun,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_mp5,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_pistol,        CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_shotgun,       CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_smg,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_gsg9_sniperrifle,   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9,              CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_assaultrifle,  CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_grenader,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_law,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_machinegun,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_mp5,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_pistol,        CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_shotgun,       CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_smg,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_gsg9_sniperrifle,   CCounterTerrorist );
 
 // 4. SWAT (美國特警) 全武器矩陣
-LINK_ENTITY_TO_CLASS( monster_ct_swat,              CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_assaultrifle,  CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_grenader,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_law,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_machinegun,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_mp5,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_pistol,        CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_shotgun,       CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_smg,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_swat_sniperrifle,   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_ct_swat,              CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_assaultrifle,  CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_grenader,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_law,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_machinegun,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_mp5,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_pistol,        CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_shotgun,       CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_smg,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_swat_sniperrifle,   CCounterTerrorist );
 
 // 5. SAS (英國空降特勤隊) 全武器矩陣
-LINK_ENTITY_TO_CLASS( monster_ct_sas,              CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_assaultrifle,  CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_grenader,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_law,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_machinegun,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_mp5,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_pistol,        CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_shotgun,       CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_smg,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_sas_sniperrifle,   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_ct_sas,              CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_assaultrifle,  CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_grenader,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_law,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_machinegun,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_mp5,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_pistol,        CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_shotgun,       CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_smg,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_sas_sniperrifle,   CCounterTerrorist );
 
 // 6. Spetsnaz (俄羅斯特種部隊) 全武器矩陣
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz,              CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_assaultrifle,  CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_grenader,      CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_law,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_machinegun,    CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_mp5,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_pistol,        CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_shotgun,       CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_smg,           CMonsterCtSwat );
-LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_sniperrifle,   CMonsterCtSwat );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz,              CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_assaultrifle,  CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_grenader,      CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_law,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_machinegun,    CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_mp5,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_pistol,        CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_shotgun,       CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_smg,           CCounterTerrorist );
+LINK_ENTITY_TO_CLASS( monster_ct_spetsnaz_sniperrifle,   CCounterTerrorist );
 
-void CMonsterCtSwat::UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+TYPEDESCRIPTION CCounterTerrorist::m_SaveData[] =
+{
+    // ?? 1~5: 兵種與行為核心變數
+    DEFINE_FIELD( CCounterTerrorist, m_ctBehavior, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_behaviorType, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_canWander, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CCounterTerrorist, m_wanderTime, FIELD_TIME ),
+    DEFINE_FIELD( CCounterTerrorist, m_wanderOrigin, FIELD_POSITION_VECTOR ),
+
+    // ?? 6~9: 地圖事件、多國語言與變體分流
+    DEFINE_FIELD( CCounterTerrorist, m_useTarget, FIELD_STRING ),
+    DEFINE_FIELD( CCounterTerrorist, m_ctType, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_language, FIELD_STRING ),
+    DEFINE_FIELD( CCounterTerrorist, m_bFollowStuck, FIELD_BOOLEAN ),
+
+    // ?? 10~15: 戰術無線電與語音排隊系統
+    DEFINE_FIELD( CCounterTerrorist, m_iSentence, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_flStopTalkTime, FIELD_TIME ),
+    DEFINE_FIELD( CCounterTerrorist, m_flStareTime, FIELD_TIME ),
+    DEFINE_FIELD( CCounterTerrorist, m_flNextPainTime, FIELD_TIME ),
+    DEFINE_FIELD( CCounterTerrorist, m_flNextGrenadeCheck, FIELD_TIME ),
+    DEFINE_FIELD( CCounterTerrorist, m_fThrowGrenade, FIELD_BOOLEAN ),
+
+    // ?? 16~19: 關卡外觀、無敵標記與 3D 黃黃銅彈殼索引
+    DEFINE_FIELD( CCounterTerrorist, m_head, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_invulnerable, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CCounterTerrorist, m_iBrassShell, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_iShotgunShell, FIELD_INTEGER ),
+
+    // ?? 20~23: 戰術道具受干擾熔斷狀態
+    DEFINE_FIELD( CCounterTerrorist, m_iWeaponEffectType, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_bWeaponEffectActive, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CCounterTerrorist, taskFailCount, FIELD_FLOAT ),
+    DEFINE_FIELD( CCounterTerrorist, m_fFirstEncounter, FIELD_BOOLEAN ),
+
+    // ?? 24~28: 武器彈藥基數與動態彈道精確度向量
+    DEFINE_FIELD( CCounterTerrorist, m_cClipSize, FIELD_INTEGER ),
+    DEFINE_FIELD( CCounterTerrorist, m_dropItem, FIELD_STRING ),
+    DEFINE_FIELD( CCounterTerrorist, m_dropChance, FIELD_FLOAT ),
+    DEFINE_FIELD( CCounterTerrorist, m_fPreferedRange, FIELD_FLOAT ),
+    DEFINE_FIELD( CCounterTerrorist, m_weaponAccuracy, FIELD_VECTOR ), // ?? 剛好第 28 個欄位！
+};
+
+int  g_fCTQuestion = 0;
+
+CCounterTerrorist::CCounterTerrorist()
+{
+    m_ctBehavior         = 0;
+    m_behaviorType       = 0;
+    m_flNextGrenadeCheck = 0.0f;
+    m_flNextPainTime     = 0.0f;
+    m_iSentence          = -1;
+    m_fFirstEncounter    = 1;
+    m_healthMultiplier   = 1.0f; 
+    m_ctType             = 0;
+    m_language           = 0;
+    m_cantMove           = 0;
+    m_pBeam              = nullptr;
+    m_pLaserGlow         = nullptr;
+    m_voicePitch         = 100;
+    m_iBrassShell        = 0;
+    m_iShotgunShell      = 0;
+    m_usFireM60 = m_usFireUSP = m_usFireAK47 = m_usFireM4A1 = 0;
+    m_usFireScout = m_usFireMAC10 = m_usFireShotgun = m_usFireMP5 = 0;
+    m_fThrowGrenade      = FALSE;
+    m_vecTossVelocity    = g_vecZero;
+    m_classtype          = 16;         // 16 即 0x10 (CLASS_PLAYER_ALLY)
+    m_forcedTarget       = 0;          // 0 代表無地圖強制劇情目標
+    m_bStanding          = TRUE;
+	m_flStopTalkTime     = 0.0f;
+    m_wanderTime         = 0.0f;
+    m_canWander          = TRUE; // 預設允許自由走動
+    m_wanderOrigin       = g_vecZero;
+    justShotFlag         = FALSE;
+    m_fPreferedRange     = 512.0f; // 預設黃金交戰距離為 512 碼
+    m_bFollowStuck 	     = FALSE;
+    m_iWeaponEffectType   = 0;
+    m_bWeaponEffectActive = FALSE;
+	m_cClipSize   = 30; // 預設突擊步槍滿彈夾 30 發
+    m_dropItem    = 0;
+    m_dropChance  = 0.0f;
+	m_flStareTime = 0.0f;
+	m_laserBrightness     = 0.0f;
+    m_glowBrightness      = 0.0f;
+    m_flLastEnemySightTime = 0.0f;
+    m_fEnemyEluded         = FALSE;
+	m_weaponAccuracy = g_vecZero; // 預設一出生時首發精確度最高
+    m_invulnerable       = FALSE; // 預設不是無敵狀態
+    m_head               = 0;     // 預設採用 0 號標準迷彩皮膚
+	m_useTarget = 0;
+    memset( scheduleTable, 0, sizeof(scheduleTable) );
+    if ( pev ) 
+    {
+        pev->nextthink = 0.0f;
+    }
+}
+
+void CCounterTerrorist::Precache( void )
+{
+    PRECACHE_SOUND( "weapons/reload_shotgun.wav" );
+    PRECACHE_SOUND( "weapons/pistol_reload.wav" );
+    PRECACHE_SOUND( "weapons/reload_mp5.wav" );
+    PRECACHE_SOUND( "weapons/glauncher.wav" );
+    PRECACHE_SOUND( "weapons/sbarrel1.wav" );
+    PRECACHE_SOUND( "weapons/knife_slash1.wav" );
+
+    // ?? 強鎖特警美美式精英軍人語音標準音調偏置 (100)
+    m_voicePitch = 100;
+
+    // =========================================================================
+    // ?? 2. 3D金屬/塑料動態拋殼粒子、與紅外線雷射精靈貼圖預載
+    // =========================================================================
+    m_iBrassShell   = PRECACHE_MODEL( "models/shell.mdl" );         // 黃銅小彈殼模型
+    m_iShotgunShell = PRECACHE_MODEL( "models/shotgunshell.mdl" );  // 紅色塑料散彈大殼模型
+    
+    PRECACHE_MODEL( "sprites/laserbeam.spr" );                     // 狙擊雷射線射線
+    PRECACHE_MODEL( "sprites/flare3.spr" );                        // 槍口光暈精靈
+
+    // =========================================================================
+    // ?? 3. 特警 8 大核心現代化輕重武器 Client-Side 網路 Delta 事件同步句柄註冊
+    // =========================================================================
+    m_usFireM60     = PRECACHE_EVENT( 1, "events/m60.sc" );
+    m_usFireUSP     = PRECACHE_EVENT( 1, "events/usp.sc" );
+    m_usFireAK47    = PRECACHE_EVENT( 1, "events/ak47.sc" );
+    m_usFireM4A1    = PRECACHE_EVENT( 1, "events/m4a1.sc" );
+    m_usFireScout   = PRECACHE_EVENT( 1, "events/scout.sc" );
+    m_usFireMAC10   = PRECACHE_EVENT( 1, "events/mac10.sc" );
+    m_usFireShotgun = PRECACHE_EVENT( 1, "events/xm1014.sc" );
+    m_usFireMP5     = PRECACHE_EVENT( 1, "events/mp5n.sc" );
+}
+
+void CCounterTerrorist::SpawnInit( void )
+{
+    // =========================================================================
+    // ?? 1. 優先級一：若關卡設計師指定了特殊實體模型 (如 sas.mdl / gign.mdl)
+    // 則優先放行綁定，將 3D 三維骨骼網格加載進當前特警實體中
+    // =========================================================================
+    if ( pev->model != 0 )
+    {
+        SET_MODEL( edict(), (char *)STRING( pev->model ) );
+        return;
+    }
+
+    // =========================================================================
+    // ?? 優先級二：100% 還原二進位行為，基準降級相容，強鎖 HGrunt 陸軍模型鋼印
+    // 確保骨骼動作解碼鏈與 Vanilla 引擎底層網格達成微米級精度對齊
+    // =========================================================================
+    SET_MODEL( edict(), "models/hgrunt.mdl" );
+}
+
+void CCounterTerrorist::Spawn( void )
+{
+    // 1. 優先拉起小隊怪物類別母體 (CSquadMonster) 的虛擬表基礎構造
+    CSquadMonster::Spawn();
+    
+    // 呼叫虛擬表 0x224 偏移方法 (初始化小隊成員結構體網絡)
+    // 對應二進位 _vptr + 0x224
+    InitSquadData();
+
+    // ?? 2. 戰術兵種型態反查與幾何凸殼尺寸配准
+    m_ctBehavior = GetBehaviorType();
+
+    Vector vecMin = Vector( -16.0f, -16.0f, 0.0f );
+    Vector vecMax = Vector( 16.0f,  16.0f,  72.0f );
+    UTIL_SetSize( pev, vecMin, vecMax );
+
+    pev->solid    = SOLID_SLIDEBOX; // 3: 滑動尋路碰撞箱
+    pev->movetype = MOVETYPE_STEP;  // 4: 尋路步進物理
+
+    // ?? ?? 100% 還原二進位大廠機密：複用 HGrunt 人類陸軍常規血量，注入 247號 紅色血液鋼印
+    pev->health   = gSkillData.hgruntHealth * m_healthMultiplier;
+    m_bloodColor  = BLOOD_COLOR_RED; // 247 = 0xF7
+    pev->effects  = 0;
+
+    m_flFieldOfView = 0.1f; // 預設常規視角夾角
+    m_MonsterState  = MONSTERSTATE_NONE;
+
+    // 開闢特警特有戰術技能位元遮罩：支援掩體換彈、開火移動與高級聽覺
+    m_afCapability  = bits_CAP_MOVE_SHOOT | bits_CAP_TAKE_COVER | bits_CAP_HEAR | bits_CAP_RANGE_ATTACK1; // 0x748
+    
+    m_flNextGrenadeCheck = gpGlobals->time + 1.0f; // 1秒後啟動反手投擲手榴彈排查
+    m_flNextPainTime     = gpGlobals->time;
+    m_iSentence          = -1;
+    m_fEnemyEluded       = FALSE;
+    m_fFirstEncounter    = TRUE;
+
+    // ?? 格式化特警專屬武器槍口高度偏置 (相對於腳底板向上 55 碼)
+    m_HackedGunPos       = Vector( 0.0f, 0.0f, 55.0f );
+
+    // 加載特警軍火庫
+    SetupWeapons();
+
+    // =========================================================================
+    // ?? 16 容量計畫表機率輪盤全線格式化歸位 (do-while 內存清空鏡像)
+    // =========================================================================
+    for ( int i = 0; i < 16; i++ )
+    {
+        scheduleTable[i].activeFlag    = 0.0f;
+        scheduleTable[i].percentChance = 1.0f;
+    }
+
+    // 依據當前特警行為代號，重寫計畫表參數性格
+    SetupBehaviors( m_ctBehavior );
+    CTalkMonster::g_talkWaitTime = 0.0f; // 語音信道開局暢通
+
+    // 呼叫虛擬表 0x120 偏移方法 (拉起動畫序列配准)
+    // 對應二進位 _vptr + 0x120
+    ResetSequenceInfo();
+
+    // =========================================================================
+    // ?? 狙擊手與火箭筒兵特權：4096碼超視距廣角感知視線、與紅外線雷射構造
+    // =========================================================================
+    if ( m_ctBehavior == 4 || m_ctBehavior == 5 ) // 4: Sniper, 5: LAW
+    {
+        if ( m_customRange == 0 )
+        {
+            m_flDistTooFar = 2048.0f; // 鎖定遠程火力範圍
+        }
+        m_flDistLook    = 4096.0f; // ?? 4096碼 超視距老鷹眼神
+        m_flFieldOfView = -0.7f;   // ?? 270度 戰術超廣角防繞後防禦
+        
+        SetupLaserGlow(); // 動態點亮特警紅外線雷射軌跡
+    }
+
+    // 霸體過濾
+    if ( m_invulnerable != 0 )
+    {
+        pev->takedamage = DAMAGE_NO; // 0.0f
+    }
+
+    // 模型 Bodygroup 頭飾自適應加載
+    if ( m_head > 0 )
+    {
+        CBaseAnimating::SetBodygroup( 1, m_head );
+    }
+
+    // =========================================================================
+    // ?? 戰術核心：強鎖 FollowerUse 接口指標
+    // 允許玩家走過去按下 E 鍵引爆跟隨/撤離狀態機，成為最溫暖的 Companion 小隊！
+    // =========================================================================
+    SetUse( &CCounterTerrorist::FollowerUse );
+}
+
+void CCounterTerrorist::UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
     // 1. 檢查地圖製作者是否為此特警配置了自定義觸發目標 (0 代表無觸發)
     if ( m_useTarget == 0 )
@@ -125,7 +325,7 @@ void CMonsterCtSwat::UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, U
     FireTargets( STRING(m_useTarget), pActivator, this, useType, value );
 }
 
-void CMonsterCtSwat::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
+void CCounterTerrorist::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
 {
     if ( ptr == nullptr )
     {
@@ -166,7 +366,7 @@ void CMonsterCtSwat::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector
     CSquadMonster::TraceAttack( pevAttacker, flDamage, vecDir, ptr, bitsDamageType );
 }
 
-void CMonsterCtSwat::Touch( CBaseEntity *pOther )
+void CCounterTerrorist::Touch( CBaseEntity *pOther )
 {
     // 1. 安全攔截：若踫撞物體無效，直接返回
     if ( pOther == nullptr )
@@ -179,13 +379,13 @@ void CMonsterCtSwat::Touch( CBaseEntity *pOther )
     m_wanderTime = 0.0f;
 }
 
-void CMonsterCtSwat::Talk( float flDuration )
+void CCounterTerrorist::Talk( float flDuration )
 {
     // 完美還原：以當前遊戲時間為基準，向後注入指定的語音說話持續時長
     m_flStopTalkTime = gpGlobals->time + flDuration;
 }
 
-void CMonsterCtSwat::ShootSniperRifle( void )
+void CCounterTerrorist::ShootSniperRifle( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目開槍
     if ( m_hEnemy == nullptr )
@@ -241,7 +441,7 @@ void CMonsterCtSwat::ShootSniperRifle( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, "weapons/scout_fire-1.wav", 1.0f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::ShootSMG( void )
+void CCounterTerrorist::ShootSMG( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目全自動掃射
     if ( m_hEnemy == nullptr )
@@ -299,7 +499,7 @@ void CMonsterCtSwat::ShootSMG( void )
 }
 
 // 在你的 server.cpp 中，只需要保留這一個最完美的散彈槍開火實作：
-void CMonsterCtSwat::ShootShotgun( void )
+void CCounterTerrorist::ShootShotgun( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目開槍
     if ( m_hEnemy == nullptr )
@@ -365,7 +565,7 @@ void CMonsterCtSwat::ShootShotgun( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, "weapons/xm1014-1.wav", 0.75f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::ShootPistol( void )
+void CCounterTerrorist::ShootPistol( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目開槍
     if ( m_hEnemy == nullptr )
@@ -422,7 +622,7 @@ void CMonsterCtSwat::ShootPistol( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, "weapons/usp_unsil-1.wav", 0.75f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::ShootMP5( void )
+void CCounterTerrorist::ShootMP5( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目全自動掃射
     if ( m_hEnemy == nullptr )
@@ -480,7 +680,7 @@ void CMonsterCtSwat::ShootMP5( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, pszShootSound, 0.75f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::ShootMachineGun( void )
+void CCounterTerrorist::ShootMachineGun( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目全自動掃射
     if ( m_hEnemy == nullptr )
@@ -537,7 +737,7 @@ void CMonsterCtSwat::ShootMachineGun( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, pszShootSound, 0.75f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::ShootLAW( void )
+void CCounterTerrorist::ShootLAW( void )
 {
     // 1. ?? 外部安全審查：確保發射瞬間敵人依然存在，防止對著空氣發射火箭彈
     if ( m_hEnemy == nullptr )
@@ -589,7 +789,7 @@ void CMonsterCtSwat::ShootLAW( void )
 }
 
 // 在你的 server.cpp 中，只需要保留這一個最完美的突擊步槍開火實作：
-void CMonsterCtSwat::ShootAssaultRifle( void )
+void CCounterTerrorist::ShootAssaultRifle( void )
 {
     // 1. ?? 外部安全審查攔截：確保扣動扳機的瞬間敵人依然存在，防止對著空氣盲目開火
     if ( m_hEnemy == nullptr )
@@ -671,7 +871,7 @@ void CMonsterCtSwat::ShootAssaultRifle( void )
     EMIT_SOUND_DYN( ENT(pev), CHAN_WEAPON, pszShootSound, 0.75f, ATTN_NORM, 0, 100 );
 }
 
-void CMonsterCtSwat::SetYawSpeed( void )
+void CCounterTerrorist::SetYawSpeed( void )
 {
     float flYawSpeed = 90.0f; // 預設兜底轉身角速度為 90.0 度/秒
 
@@ -716,7 +916,7 @@ void CMonsterCtSwat::SetYawSpeed( void )
     pev->yaw_speed = flYawSpeed;
 }
 
-void CMonsterCtSwat::SetupWeapons( void )
+void CCounterTerrorist::SetupWeapons( void )
 {
     // 1. 初始化彈匣容量與當前加載彈藥的預設基數 (0x24 = 36 發)
     m_cClipSize   = 36;
@@ -825,7 +1025,7 @@ void CMonsterCtSwat::SetupWeapons( void )
     m_cAmmoLoaded = m_cClipSize;
 }
 
-void CMonsterCtSwat::SetupLaserGlow( void )
+void CCounterTerrorist::SetupLaserGlow( void )
 {
     // =========================================================================
     // ?? 1. 動態創建狙擊手紅外線雷射線 (CBeam)
@@ -889,7 +1089,7 @@ void CMonsterCtSwat::SetupLaserGlow( void )
     }
 }
 
-void CMonsterCtSwat::SetupBehaviors( int type )
+void CCounterTerrorist::SetupBehaviors( int type )
 {
     switch ( type )
     {
@@ -993,7 +1193,7 @@ void CMonsterCtSwat::SetupBehaviors( int type )
     }
 }
 
-int CMonsterCtSwat::SetActivitySniperBase( Activity NewActivity )
+int CCounterTerrorist::SetActivitySniperBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1051,7 +1251,7 @@ int CMonsterCtSwat::SetActivitySniperBase( Activity NewActivity )
     return -1;
 }
 
-int CMonsterCtSwat::SetActivityShotgunBase( Activity NewActivity )
+int CCounterTerrorist::SetActivityShotgunBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1099,7 +1299,7 @@ int CMonsterCtSwat::SetActivityShotgunBase( Activity NewActivity )
     return -1;
 }
 
-int CMonsterCtSwat::SetActivityPistolBase( Activity NewActivity )
+int CCounterTerrorist::SetActivityPistolBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1224,7 +1424,7 @@ int CMonsterCtSwat::SetActivityPistolBase( Activity NewActivity )
     return -1;
 }
 
-int CMonsterCtSwat::SetActivityLAWBase( Activity NewActivity )
+int CCounterTerrorist::SetActivityLAWBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1282,7 +1482,7 @@ int CMonsterCtSwat::SetActivityLAWBase( Activity NewActivity )
     return -1;
 }
 
-int CMonsterCtSwat::SetActivityGrenadeBase( Activity NewActivity )
+int CCounterTerrorist::SetActivityGrenadeBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1315,7 +1515,7 @@ int CMonsterCtSwat::SetActivityGrenadeBase( Activity NewActivity )
     return -1;
 }
 
-int CMonsterCtSwat::SetActivityAutomaticBase( Activity NewActivity )
+int CCounterTerrorist::SetActivityAutomaticBase( Activity NewActivity )
 {
     // 獲取 3D 模型指針（用於二進位底層對齊）
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1360,7 +1560,7 @@ int CMonsterCtSwat::SetActivityAutomaticBase( Activity NewActivity )
     return -1;
 }
 
-void CMonsterCtSwat::SetActivity( Activity NewActivity )
+void CCounterTerrorist::SetActivity( Activity NewActivity )
 {
     int iSequence = -1;
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1509,7 +1709,7 @@ void CMonsterCtSwat::SetActivity( Activity NewActivity )
     SetYawSpeed(); 
 }
 
-Schedule_t* CMonsterCtSwat::ScheduleFromName( const char *pName )
+Schedule_t* CCounterTerrorist::ScheduleFromName( const char *pName )
 {
     // 1. 優先在 SWAT 隊員專屬的 41 個自定義戰術計畫清單中進行字串匹配查找
     // sizeof(m_scheduleList) / sizeof(m_scheduleList[0]) 在編譯時會 100% 精確展開為 41 (0x29)
@@ -1524,7 +1724,7 @@ Schedule_t* CMonsterCtSwat::ScheduleFromName( const char *pName )
     return CSquadMonster::ScheduleFromName( pName );
 }
 
-void CMonsterCtSwat::RunTask( Task_t *pTask )
+void CCounterTerrorist::RunTask( Task_t *pTask )
 {
     switch ( pTask->iTask )
     {
@@ -1634,7 +1834,7 @@ void CMonsterCtSwat::RunTask( Task_t *pTask )
     }
 }
 
-int CMonsterCtSwat::Save( CSave &save )
+int CCounterTerrorist::Save( CSave &save )
 {
     // 1. 優先呼叫基底類別小隊怪物的 Save 方法，保存標準 AI 與尋路變數
     int status = CSquadMonster::Save( save );
@@ -1649,7 +1849,7 @@ int CMonsterCtSwat::Save( CSave &save )
     return save.WriteFields( "CCounterTerrorist", this, m_SaveData, sizeof(m_SaveData) / sizeof(m_SaveData[0]) );
 }
 
-int CMonsterCtSwat::Restore( CRestore &restore )
+int CCounterTerrorist::Restore( CRestore &restore )
 {
     // 1. 優先呼叫基底類別小隊怪物的 Restore，恢復標準的 AI 尋路和狀態變數
     int status = CSquadMonster::Restore( restore );
@@ -1664,7 +1864,7 @@ int CMonsterCtSwat::Restore( CRestore &restore )
     return restore.ReadFields( "CCounterTerrorist", this, m_SaveData, sizeof(m_SaveData) / sizeof(m_SaveData[0]) );
 }
 
-void CMonsterCtSwat::ResetHeadWatch( void )
+void CCounterTerrorist::ResetHeadWatch( void )
 {
     // 1. 將 0 號頸部骨骼控制器強行重置為 0.0 度 (頭部迅速恢復面朝正前方)
     SetBoneController( 0, 0.0f );
@@ -1673,7 +1873,7 @@ void CMonsterCtSwat::ResetHeadWatch( void )
     m_hTalkTarget = nullptr;
 }
 
-void CMonsterCtSwat::PrescheduleThink( void )
+void CCounterTerrorist::PrescheduleThink( void )
 {
     // ?? 說話截止超時檢查：當語音播放完畢，一鍵調用函數讓頭部骨骼與注視焦點重置歸位
     if ( m_flStopTalkTime != 0.0f && m_flStopTalkTime < gpGlobals->time )
@@ -1710,7 +1910,7 @@ void CMonsterCtSwat::PrescheduleThink( void )
     }
 }
 
-void CMonsterCtSwat::PlayScriptedSentence( char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener )
+void CCounterTerrorist::PlayScriptedSentence( char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener )
 {
     // 1. 活體安全審查：只有在活著且未處於死亡判定狀態下，才允許播放劇情腳本語音
     if ( !IsAlive() || pev->deadflag == DEAD_DYING ) // 1
@@ -1768,7 +1968,7 @@ void CMonsterCtSwat::PlayScriptedSentence( char *pszSentence, float duration, fl
     Talk( duration );
 }
 
-void CMonsterCtSwat::PainSound( void )
+void CCounterTerrorist::PainSound( void )
 {
     // 1. 受傷叫聲冷卻檢查：防止短時間內被連續中彈時發出鬼畜重複慘叫
     if ( gpGlobals->time > m_flNextPainTime )
@@ -1781,13 +1981,13 @@ void CMonsterCtSwat::PainSound( void )
     }
 }
 
-int CMonsterCtSwat::ObjectCaps( void )
+int CCounterTerrorist::ObjectCaps( void )
 {
     // 完美還原 10 (2 | 8) 能力旗標：允許且強制該隊員隨玩家跨越 Changelevel 關卡切換
     return FCAP_ACROSS_TRANSITION | FCAP_FORCE_TRANSITION;
 }
 
-int CMonsterCtSwat::LookupActivityHeaviest( int activity )
+int CCounterTerrorist::LookupActivityHeaviest( int activity )
 {
     // 1. 獲取當前實體加載的 3D 模型指針 (MDL 數據頭)
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1841,7 +2041,7 @@ int CMonsterCtSwat::LookupActivityHeaviest( int activity )
     return CSquadMonster::LookupActivityHeaviest( activity );
 }
 
-int CMonsterCtSwat::LookupActivity( int activity )
+int CCounterTerrorist::LookupActivity( int activity )
 {
     // 1. 獲取當前實體加載的 3D 模型指針 (MDL 數據頭)
     void *pModel = GET_MODEL_PTR( edict() );
@@ -1901,13 +2101,13 @@ int CMonsterCtSwat::LookupActivity( int activity )
     return CSquadMonster::LookupActivity( activity );
 }
 
-void CMonsterCtSwat::LimitFollowers( CBaseEntity *pPlayer, int maxFollowers )
+void CCounterTerrorist::LimitFollowers( CBaseEntity *pPlayer, int maxFollowers )
 {
     // 完美對齊：此處在 Linux server.so 二進位中被作者寫死為 Stub 空函數，不執行任何人數限制
     return;
 }
 
-void CMonsterCtSwat::LaserGlowOn( void )
+void CCounterTerrorist::LaserGlowOn( void )
 {
     // =========================================================================
     // ?? 1. 狙擊雷射線 (CBeam) 實體動態對齊與渲染
@@ -1956,7 +2156,7 @@ void CMonsterCtSwat::LaserGlowOn( void )
     m_pLaserGlow->pev->renderamt = 255.0f;
 }
 
-void CMonsterCtSwat::LaserGlowOff( void )
+void CCounterTerrorist::LaserGlowOff( void )
 {
     // 1. 檢查並安全移除狙擊手的雷射紅外線瞄準線實體
     if ( m_pBeam != nullptr )
@@ -1973,7 +2173,7 @@ void CMonsterCtSwat::LaserGlowOff( void )
     }
 }
 
-CBaseEntity* CMonsterCtSwat::Kick( void )
+CBaseEntity* CCounterTerrorist::Kick( void )
 {
     // 1. 刷新當前面朝方向向量矩陣
     UTIL_MakeVectors( pev->angles );
@@ -2026,7 +2226,7 @@ CBaseEntity* CMonsterCtSwat::Kick( void )
     return nullptr;
 }
 
-void CMonsterCtSwat::KeyValue( KeyValueData *pkvd )
+void CCounterTerrorist::KeyValue( KeyValueData *pkvd )
 {
     // 1. 檢查地圖屬性鍵名是否為 "behavior" (不區分大小寫比對)
     if ( strcasecmp( pkvd->szKeyName, "behavior" ) == 0 )
@@ -2052,7 +2252,7 @@ void CMonsterCtSwat::KeyValue( KeyValueData *pkvd )
     CSquadMonster::KeyValue( pkvd );
 }
 
-void CMonsterCtSwat::JustSpoke( float nextSpeakTime )
+void CCounterTerrorist::JustSpoke( float nextSpeakTime )
 {
     // 1. 如果傳入特定的 -1.0f 信號，自動動態計算 1.5 ~ 2.0 秒的戰術隨機冷卻
     if ( nextSpeakTime == -1.0f )
@@ -2070,7 +2270,7 @@ void CMonsterCtSwat::JustSpoke( float nextSpeakTime )
     m_iSentence = -1;
 }
 
-BOOL CMonsterCtSwat::IsTalking( void )
+BOOL CCounterTerrorist::IsTalking( void )
 {
     // 完美還原：若當前遊戲時間小於說話截止時間，代表 NPC 正忙於語音通訊
     if ( gpGlobals->time < m_flStopTalkTime )
@@ -2081,7 +2281,7 @@ BOOL CMonsterCtSwat::IsTalking( void )
     return FALSE;
 }
 
-BOOL CMonsterCtSwat::IsPlayerHidden( void )
+BOOL CCounterTerrorist::IsPlayerHidden( void )
 {
     // 1. 戰鬥思維熔斷：如果目前處於 MONSTERSTATE_COMBAT (3) 或更高戰備狀態，玩家無法在特警面前隱蔽
     if ( m_MonsterState == MONSTERSTATE_COMBAT || m_MonsterState > MONSTERSTATE_COMBAT )
@@ -2123,13 +2323,13 @@ BOOL CMonsterCtSwat::IsPlayerHidden( void )
     return FALSE;
 }
 
-int CMonsterCtSwat::ISoundMask( void )
+int CCounterTerrorist::ISoundMask( void )
 {
     // 完美還原 0x23 聽覺遮罩：只聽取 槍聲、環境物理碰撞聲 以及 手榴彈爆炸危險聲
     return bits_SOUND_COMBAT | bits_SOUND_WORLD | bits_SOUND_DANGER; 
 }
 
-void CMonsterCtSwat::InitScheduleTable( void )
+void CCounterTerrorist::InitScheduleTable( void )
 {
     // 完美還原：遍歷所有 74 個戰術計畫通道
     for ( int i = 0; i < 74; i++ )
@@ -2139,7 +2339,7 @@ void CMonsterCtSwat::InitScheduleTable( void )
     }
 }
 
-void CMonsterCtSwat::IdleSound( void )
+void CCounterTerrorist::IdleSound( void )
 {
     // 1. 機率過濾：大於 75 則保持沉默 (約 24% 機率不說話)
     if ( RANDOM_LONG( 0, 99 ) > 75 )
@@ -2198,7 +2398,7 @@ void CMonsterCtSwat::IdleSound( void )
     CTalkMonster::g_talkWaitTime = gpGlobals->time + 5.0f;
 }
 
-void CMonsterCtSwat::IdleHeadTurn( Vector *vecFriend )
+void CCounterTerrorist::IdleHeadTurn( Vector *vecFriend )
 {
     // 1. 外部安全審查（對應你貼的第二段代碼）
     if ( (m_afCapability & bits_CAP_TURN_HEAD) == 0 )
@@ -2224,7 +2424,7 @@ void CMonsterCtSwat::IdleHeadTurn( Vector *vecFriend )
     SetBoneController( 0, flDeltaYaw );
 }
 
-void CMonsterCtSwat::HandleSpeaking( int schedule )
+void CCounterTerrorist::HandleSpeaking( int schedule )
 {
     // 1. 全局語音與衝突檢查：如果不允許說話，直接返回
     if ( !FOkToSpeak() )
@@ -2314,7 +2514,7 @@ void CMonsterCtSwat::HandleSpeaking( int schedule )
     }
 }
 
-Schedule_t* CMonsterCtSwat::HandleIdleHeadWatch( void )
+Schedule_t* CCounterTerrorist::HandleIdleHeadWatch( void )
 {
     // 1. 眼神冷卻計時器檢查 ＆ 視野內是否正好看見玩家 (bits_COND_SEE_CLIENT = 0x200000)
     if ( gpGlobals->time >= m_flStareTime && HasConditions( bits_COND_SEE_CLIENT ) )
@@ -2358,7 +2558,7 @@ Schedule_t* CMonsterCtSwat::HandleIdleHeadWatch( void )
     return nullptr;
 }
 
-Schedule_t* CMonsterCtSwat::HandleFollowing( void )
+Schedule_t* CCounterTerrorist::HandleFollowing( void )
 {
     // 1. 安全攔截：只有在目前「沒有敵人」的情況下，才評估隨行尋路
     if ( m_hEnemy == nullptr )
@@ -2393,7 +2593,7 @@ Schedule_t* CMonsterCtSwat::HandleFollowing( void )
     return nullptr;
 }
 
-void CMonsterCtSwat::HandleAnimEvent( MonsterEvent_t *pEvent )
+void CCounterTerrorist::HandleAnimEvent( MonsterEvent_t *pEvent )
 {
     switch ( pEvent->event )
     {
@@ -2553,7 +2753,7 @@ void CMonsterCtSwat::HandleAnimEvent( MonsterEvent_t *pEvent )
     }
 }
 
-void CMonsterCtSwat::GibMonster( void )
+void CCounterTerrorist::GibMonster( void )
 {
     // 1. 讀取模型部件組 2，檢查 SWAT 目前手上是否有拿著武器 (2 通常代表空手/無槍)
     int iWeaponBodyGroup = GetBodygroup( 2 );
@@ -2590,7 +2790,7 @@ void CMonsterCtSwat::GibMonster( void )
     CBaseMonster::GibMonster();
 }
 
-int CMonsterCtSwat::GetWeaponEffectSchedule( void )
+int CCounterTerrorist::GetWeaponEffectSchedule( void )
 {
     // 1. 獲取當前受到的戰術道具效果類型
     int iEffectType = m_iWeaponEffectType;
@@ -2656,7 +2856,7 @@ int CMonsterCtSwat::GetWeaponEffectSchedule( void )
     return -1;
 }
 
-int CMonsterCtSwat::GetScheduleFromTable( void )
+int CCounterTerrorist::GetScheduleFromTable( void )
 {
     float flTotalChanceSum = 0.0f;
 
@@ -2718,7 +2918,7 @@ int CMonsterCtSwat::GetScheduleFromTable( void )
     return -1;
 }
 
-Schedule_t* CMonsterCtSwat::GetScheduleOfType( int Type )
+Schedule_t* CCounterTerrorist::GetScheduleOfType( int Type )
 {
     // 1. 特殊計畫攔截 (0x16 任務失敗計數清零)
     if ( Type == 0x16 )
@@ -2891,7 +3091,7 @@ Schedule_t* CMonsterCtSwat::GetScheduleOfType( int Type )
     return CSquadMonster::GetScheduleOfType( Type );
 }
 
-Schedule_t *CMonsterCtSwat::GetSchedule(void)
+Schedule_t *CCounterTerrorist::GetSchedule(void)
 {
 	// 重設台詞句型
 	m_iSentence = -1;
@@ -3132,7 +3332,7 @@ Schedule_t *CMonsterCtSwat::GetSchedule(void)
 	return CSquadMonster::GetSchedule();
 }
 
-int CMonsterCtSwat::GetHearingSchedule( void )
+int CCounterTerrorist::GetHearingSchedule( void )
 {
     // 1. 檢查目前是否觸發了「聽到聲音」的 AI 條件標籤
     if ( HasConditions( bits_COND_HEAR_SOUND ) )
@@ -3161,7 +3361,7 @@ int CMonsterCtSwat::GetHearingSchedule( void )
     return -1;
 }
 
-Vector CMonsterCtSwat::GetGunPosition( void )
+Vector CCounterTerrorist::GetGunPosition( void )
 {
     // 1. 初始化基礎位置為實體原點
     Vector vecGunPos = pev->origin;
@@ -3180,7 +3380,7 @@ Vector CMonsterCtSwat::GetGunPosition( void )
     return vecGunPos;
 }
 
-int CMonsterCtSwat::GetForcedTargetSchedule( void )
+int CCounterTerrorist::GetForcedTargetSchedule( void )
 {
     // 1. 檢查目前是否有地圖指派的「強制劇情攻擊目標」
     if ( m_forcedTarget == 0 )
@@ -3208,7 +3408,7 @@ int CMonsterCtSwat::GetForcedTargetSchedule( void )
     return 42; // 0x2a 精確對應 SCHED_RANGE_ATTACK1 (對著強制目標全自動開火)
 }
 
-int CMonsterCtSwat::GetFlyingSchedule( void )
+int CCounterTerrorist::GetFlyingSchedule( void )
 {
     // 1. 檢查是否處於索降下滑狀態 (MOVETYPE_FLY = 5) 
     // 並且排除躺倒/爬行等特殊受傷狀態 (MONSTERSTATE_PRONE)
@@ -3239,7 +3439,7 @@ int CMonsterCtSwat::GetFlyingSchedule( void )
     return -1; 
 }
 
-int CMonsterCtSwat::GetBehaviorType( void )
+int CCounterTerrorist::GetBehaviorType( void )
 {
     // 1. 獲取當前實體的地圖類別名稱字串
     const char* pszClassname = STRING( pev->classname );
@@ -3269,7 +3469,7 @@ int CMonsterCtSwat::GetBehaviorType( void )
     return 8; // 預設歸類為 MP5 行為
 }
 
-void CMonsterCtSwat::FollowerUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+void CCounterTerrorist::FollowerUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
 {
     // 1. 劇情最高優先級熔斷：若目前正處於不可打斷的劇情動畫劇本中，直接攔截返回
     if ( m_MonsterState == MONSTERSTATE_SCRIPT )
@@ -3395,7 +3595,7 @@ BOOL CCounterTerrorist::FOkToSpeak( void )
     return TRUE;
 }
 
-BOOL CMonsterCtSwat::FCanCheckAttacks( void )
+BOOL CCounterTerrorist::FCanCheckAttacks( void )
 {
     // 完美還原：當 0x80 (bits_COND_...) 條件不成立時，才允許檢查攻擊
     if ( HasConditions( 0x80 ) )
@@ -3406,7 +3606,7 @@ BOOL CMonsterCtSwat::FCanCheckAttacks( void )
     return TRUE;
 }
 
-void CMonsterCtSwat::DeathSound( void )
+void CCounterTerrorist::DeathSound( void )
 {
     // 1. 檢查目前是否允許播放語音
     if ( !FOkToSpeak( this ) )
@@ -3424,7 +3624,7 @@ void CMonsterCtSwat::DeathSound( void )
     SetUse( nullptr );
 }
 
-void CMonsterCtSwat::ClearScheduleTableFlags( void )
+void CCounterTerrorist::ClearScheduleTableFlags( void )
 {
     // 完美還原 do-while 循環：清空 74 個狀態機的所有啟用標記
     for ( int i = 0; i < 74; i++ )
@@ -3433,7 +3633,7 @@ void CMonsterCtSwat::ClearScheduleTableFlags( void )
     }
 }
 
-void CMonsterCtSwat::CheckAmmo( void )
+void CCounterTerrorist::CheckAmmo( void )
 {
     if ( m_cAmmoLoaded > 0 )
     {
@@ -3445,7 +3645,7 @@ void CMonsterCtSwat::CheckAmmo( void )
     SetConditions( bits_COND_NO_AMMO_LOADED ); 
 }
 
-void CMonsterCtSwat::ActivateTableEntry( int entry )
+void CCounterTerrorist::ActivateTableEntry( int entry )
 {
     if ( entry == 0x12 || entry == 0x32 || entry == 0x40 || entry == 0x42 )
     {
@@ -3460,7 +3660,7 @@ void CMonsterCtSwat::ActivateTableEntry( int entry )
     this->scheduleTable[entry].activeFlag = 1.0f;
 }
 
-int CMonsterCtSwat::CanPlaySequence( BOOL fDisregardMonsterState, int interruptLevel )
+int CCounterTerrorist::CanPlaySequence( BOOL fDisregardMonsterState, int interruptLevel )
 {
     if ( this->m_ctBehavior == 4 )
     {
@@ -3470,14 +3670,14 @@ int CMonsterCtSwat::CanPlaySequence( BOOL fDisregardMonsterState, int interruptL
     return CBaseMonster::CanPlaySequence( fDisregardMonsterState, interruptLevel );
 }
 
-BOOL CMonsterCtSwat::CanFollow( void )
+BOOL CCounterTerrorist::CanFollow( void )
 {
     if ( !IsAlive() ) return FALSE;
     if ( m_hTargetEnt != nullptr && m_hTargetEnt->IsPlayer() ) return FALSE;
     return TRUE; 
 }
 
-BOOL CMonsterCtSwat::CheckRangeAttack1( float flDot, float flDist )
+BOOL CCounterTerrorist::CheckRangeAttack1( float flDot, float flDist )
 {
     // bits_COND_ENEMY_OCCLUDED (0x20)
     if ( (HasConditions(bits_COND_ENEMY_OCCLUDED)) || (flDist > 2048.0f) || (flDot < 0.5f) )
@@ -3506,7 +3706,7 @@ BOOL CMonsterCtSwat::CheckRangeAttack1( float flDot, float flDist )
     return FALSE;
 }
 
-BOOL CMonsterCtSwat::CheckMeleeAttack1( float flDot, float flDist )
+BOOL CCounterTerrorist::CheckMeleeAttack1( float flDot, float flDist )
 {
     if ( m_hEnemy != nullptr )
     {
@@ -3616,212 +3816,7 @@ BOOL CCounterTerrorist::CheckRangeAttack2( float flDot, float flDist )
     return TRUE;
 }
 
-CMonsterCtSwat::CMonsterCtSwat()
-{
-    m_ctBehavior         = 0;
-    m_behaviorType       = 0;
-    m_flNextGrenadeCheck = 0.0f;
-    m_flNextPainTime     = 0.0f;
-    m_iSentence          = -1;
-    m_fFirstEncounter    = 1;
-    m_healthMultiplier   = 1.0f; 
-    m_ctType             = 0;
-    m_language           = 0;
-    m_cantMove           = 0;
-    m_pBeam              = nullptr;
-    m_pLaserGlow         = nullptr;
-    m_voicePitch         = 100;
-    m_iBrassShell        = 0;
-    m_iShotgunShell      = 0;
-    m_usFireM60 = m_usFireUSP = m_usFireAK47 = m_usFireM4A1 = 0;
-    m_usFireScout = m_usFireMAC10 = m_usFireShotgun = m_usFireMP5 = 0;
-    m_fThrowGrenade      = FALSE;
-    m_vecTossVelocity    = g_vecZero;
-    m_classtype          = 16;         // 16 即 0x10 (CLASS_PLAYER_ALLY)
-    m_forcedTarget       = 0;          // 0 代表無地圖強制劇情目標
-    m_bStanding          = TRUE;
-	m_flStopTalkTime     = 0.0f;
-    m_wanderTime         = 0.0f;
-    m_canWander          = TRUE; // 預設允許自由走動
-    m_wanderOrigin       = g_vecZero;
-    justShotFlag         = FALSE;
-    m_fPreferedRange     = 512.0f; // 預設黃金交戰距離為 512 碼
-    m_bFollowStuck 	     = FALSE;
-    m_iWeaponEffectType   = 0;
-    m_bWeaponEffectActive = FALSE;
-	m_cClipSize   = 30; // 預設突擊步槍滿彈夾 30 發
-    m_dropItem    = 0;
-    m_dropChance  = 0.0f;
-	m_flStareTime = 0.0f;
-	m_laserBrightness     = 0.0f;
-    m_glowBrightness      = 0.0f;
-    m_flLastEnemySightTime = 0.0f;
-    m_fEnemyEluded         = FALSE;
-	m_weaponAccuracy = g_vecZero; // 預設一出生時首發精確度最高
-    m_invulnerable       = FALSE; // 預設不是無敵狀態
-    m_head               = 0;     // 預設採用 0 號標準迷彩皮膚
-	m_useTarget = 0;
-
-
-    memset( scheduleTable, 0, sizeof(scheduleTable) );
-    
-    // 4. 引擎思考計時器重設
-    if ( pev ) 
-    {
-        pev->nextthink = 0.0f;
-    }
-}
-
-void CMonsterCtSwat::Precache( void )
-{
-    if ( pev->model != 0 && STRING(pev->model) != nullptr ) {
-        PRECACHE_MODEL( (char*)STRING(pev->model) );
-    } else {
-        if ( strcasecmp( STRING(pev->classname), "monster_ct_gign" ) == 0 )         PRECACHE_MODEL( "models/gign.mdl" );
-        else if ( strcasecmp( STRING(pev->classname), "monster_ct_gsg9" ) == 0 )    PRECACHE_MODEL( "models/gsg9.mdl" ); 
-        else if ( strcasecmp( STRING(pev->classname), "monster_ct_sas" ) == 0 )     PRECACHE_MODEL( "models/sas.mdl" ); 
-        else if ( strcasecmp( STRING(pev->classname), "monster_ct_spetsnaz" ) == 0 ) PRECACHE_MODEL( "models/spetsnaz.mdl" ); 
-        else                                                                        PRECACHE_MODEL( "models/seal.mdl" );
-    }
-    PRECACHE_SOUND( "common/wpn_hudoff.wav" ); 
-    PRECACHE_SOUND("weapons/reload_shotgun.wav"); PRECACHE_SOUND("weapons/pistol_reload.wav"); PRECACHE_SOUND("weapons/reload_mp5.wav");
-    PRECACHE_SOUND("weapons/glauncher.wav"); PRECACHE_SOUND("weapons/sbarrel1.wav"); PRECACHE_SOUND("weapons/knife_slash1.wav");
-    m_iBrassShell = PRECACHE_MODEL("models/shell.mdl"); m_iShotgunShell = PRECACHE_MODEL("models/shotgunshell.mdl");
-    PRECACHE_MODEL("sprites/laserbeam.spr"); PRECACHE_MODEL("sprites/flare3.spr");
-    m_usFireM60 = PRECACHE_EVENT(1, "events/m60.sc"); m_usFireUSP = PRECACHE_EVENT(1, "events/usp.sc"); m_usFireAK47 = PRECACHE_EVENT(1, "events/ak47.sc"); m_usFireM4A1 = PRECACHE_EVENT(1, "events/m4a1.sc");
-    m_usFireScout = PRECACHE_EVENT(1, "events/scout.sc"); m_usFireMAC10 = PRECACHE_EVENT(1, "events/mac10.sc"); m_usFireShotgun = PRECACHE_EVENT(1, "events/xm1014.sc"); m_usFireMP5 = PRECACHE_EVENT(1, "events/mp5n.sc");
-}
-
-/* void CMonsterCtSwat::SpawnInit( void )
-{
-    bool bIsGIGN     = ( strcasecmp( STRING(pev->classname), "monster_ct_gign" ) == 0 );
-    bool bIsGSG9     = ( strcasecmp( STRING(pev->classname), "monster_ct_gsg9" ) == 0 );
-    bool bIsSpetsnaz = ( strcasecmp( STRING(pev->classname), "monster_ct_spetsnaz" ) == 0 );
-    bool bIsSAS      = ( strcasecmp( STRING(pev->classname), "monster_ct_sas" ) == 0 );
-
-    if ( pev->model == 0 ) {
-        if ( bIsGIGN )         SET_MODEL( ENT(pev), "models/gign.mdl" );
-        else if ( bIsGSG9 )     SET_MODEL( ENT(pev), "models/gsg9.mdl" );
-        else if ( bIsSpetsnaz ) SET_MODEL( ENT(pev), "models/spetsnaz.mdl" );
-        else if ( bIsSAS )     SET_MODEL( ENT(pev), "models/sas.mdl" );
-        else                   SET_MODEL( ENT(pev), "models/seal.mdl" );
-    } else {
-        SET_MODEL( ENT(pev), STRING(pev->model) );
-    }
-
-    if ( bIsGIGN ) { this->m_ctType = 1; if ( this->m_language == 0 ) this->m_language = ALLOC_STRING("FR"); }
-    else if ( bIsGSG9 ) { this->m_ctType = 2; if ( this->m_language == 0 ) this->m_language = ALLOC_STRING("GE"); }
-    else if ( bIsSpetsnaz ) { this->m_ctType = 3; if ( this->m_language == 0 ) this->m_language = ALLOC_STRING("RU"); }
-    else if ( bIsSAS ) { this->m_ctType = 4; if ( this->m_language == 0 ) this->m_language = ALLOC_STRING("BR"); }
-    else { this->m_ctType = 0; if ( this->m_language == 0 ) this->m_language = ALLOC_STRING("AM"); }
-} */
-
-void CMonsterCtSwat::SpawnInit( void )
-{
-    // 1. 檢查目前實體是否已經具備合法的地圖指定模型路徑
-    if ( pev->model != 0 )
-    {
-        // 正常載入地圖製作者配置的反恐精英系列精美 3D 戰術骨骼模型
-        SET_MODEL( edict(), STRING(pev->model) );
-        return; 
-    }
-
-    // 2. ??? 終極防當機降級機制：若外觀指針不幸為空，強行加載原版陸戰隊模型，確保引擎不當機退出
-    SET_MODEL( edict(), "models/hgrunt.mdl" );
-}
-
-void CMonsterCtSwat::Spawn( void )
-{
-    // 1. 優先調用 CBaseEntity 基底類別的 Spawn 系統繼承鎖 (0x04 偏移量)
-    CBaseEntity::Spawn();
-
-    // 2. ?? 預先加載：無條件第一時間呼叫 Precache 虛擬函數 (0x224 偏移量)，載入迷彩模型與音效
-    Precache();
-
-    // 3. 兵種解碼：依據地圖類名掃描，配置核心武器行為代號
-    m_ctBehavior = GetBehaviorType();
-
-    // 4. 配置與 CS 1.6 玩家完全一致的 32x32x72 黃金物理碰撞體盒
-    UTIL_SetSize( pev, Vector(-16.0f, -16.0f, 0.0f), Vector(16.0f, 16.0f, 72.0f) );
-    
-    pev->solid    = SOLID_SLIDEBOX; // 3
-    pev->movetype = MOVETYPE_WALK;  // 4
-    pev->effects  = 0;
-
-    // 5. 設定受傷粒子為鮮紅色人類血液粒子 (0xF7 = -9)
-    m_bloodColor = BLOOD_COLOR_RED;
-
-    // 6. 數值生命庫乘法器計算：繼承陸戰隊基礎血量，並乘上自定義地圖倍率
-    pev->health = gSkillData.hgruntHealth * m_healthMultiplier;
-
-    // 7. 拉起全身戰術感知核心：小隊通訊、長槍開火、扔雷能力、眼神骨骼扭頭控制全開
-    m_afCapability = bits_CAP_SQUAD | bits_CAP_RANGE_ATTACK1 | bits_CAP_RANGE_ATTACK2 | bits_CAP_TURN_HEAD; // 0x748
-    m_flFieldOfView = 0.1f; // 常規 180 度視野錐
-
-    // 8. 狀態機時鐘與冷卻初值填裝
-    m_MonsterState       = MONSTERSTATE_NONE;
-    m_fFirstEncounter    = TRUE;
-    m_fEnemyEluded       = FALSE;
-    m_iSentence          = -1;
-    m_flNextGrenadeCheck = gpGlobals->time + 1.0f;
-    m_flNextPainTime     = gpGlobals->time;
-
-    // 修正機械發射彈道槍口高低補白基準面
-    m_HackedGunPos = Vector( 0.0f, 0.0f, 55.0f );
-
-    // =========================================================================
-    // ?? 9. 狀態機權重緩衝區拉起大閉環 (Init ? SetupWeapons ? SetupBehaviors)
-    // =========================================================================
-    InitScheduleTable(); // 清空並預設所有 74 個計畫權重基數為 1.0f
-    
-    SetupWeapons(); // 根據兵種代號，自動切換手上對應持槍武器模型組 (Bodygroup 2) 并把子彈上膛
-    
-    SetupBehaviors( m_ctBehavior ); // 注入當前兵種獨有的隨機中籤戰術性格機率
-
-    // 重置全局語音鎖
-    CTalkMonster::g_talkWaitTime = 0.0f;
-
-    // =========================================================================
-    // ?? 10. 呼叫虛擬函數執行出生二次初始化衍生調度 (0x120 偏移量代表 SpawnInit)
-    // =========================================================================
-    SpawnInit(); 
-
-    // =========================================================================
-    // ?? 11. 重裝精銳特權判定：針對 4 (狙擊手) 與 5 (火箭筒兵) 的鷹眼視距與雷射裝配
-    // =========================================================================
-    if ( m_ctBehavior == 4 || m_ctBehavior == 5 )
-    {
-        m_flDistLook  = 4096.0f; // 視距擴張整整一倍，實施超遠程打擊
-        m_flFieldOfView = -0.7f;  // 視野錐狂暴擴張至 270 度，具備極強反繞後能力
-        
-        if ( !m_customRange )
-        {
-            m_flDistTooFar = 2048.0f;
-        }
-
-        // 核心裝配：一出生無中生有地創建附著在槍口 (Attachment 2) 上的紅外線雷射實體
-        SetupLaserGlow(); 
-    }
-
-    // 12. 劇情鎖：若地圖賦予了該特警無敵不掉血屬性，關閉其 TakeDamage 受傷判定
-    if ( m_invulnerable )
-    {
-        pev->takedamage = DAMAGE_NO; // 0.0f
-    }
-
-    // =========================================================================
-    // ?? 13. 迷彩服皮膚強鎖：依據關卡傳入的 m_head 索引，動態切換 GIGN/SAS/GSG9/Spetsnaz
-    // =========================================================================
-    if ( m_head > 0 )
-    {
-        SetBodygroup( 1, m_head ); // 切換模型 1 號部件組 (頭部與服裝迷彩)
-    }
-
-    // 14. 終極註冊：將該特警的鍵盤按 E 鍵互動回調，死死綁定在小隊跟隨函數上
-    SetUse( &CMonsterCtSwat::FollowerUse );
-}
-
-void CMonsterCtSwat::SpeakSentence( void )
+void CCounterTerrorist::SpeakSentence( void )
 {
     // 1. 檢查台詞緩衝槽：若目前憋著一句尚未喊出的台詞 (-1 代表空槽)
     if ( m_iSentence != -1 )
@@ -3842,7 +3837,7 @@ void CMonsterCtSwat::SpeakSentence( void )
     }
 }
 
-void CMonsterCtSwat::StartFollowing( CBaseEntity *pLeader )
+void CCounterTerrorist::StartFollowing( CBaseEntity *pLeader )
 {
     if ( pLeader == nullptr )
     {
@@ -3866,7 +3861,7 @@ void CMonsterCtSwat::StartFollowing( CBaseEntity *pLeader )
     ClearSchedule();
 }
 
-void CMonsterCtSwat::StartTask( Task_t *pTask )
+void CCounterTerrorist::StartTask( Task_t *pTask )
 {
     // 預設將任務狀態標記為 1 (TASKSTATUS_RUNNING 啟動中)
     m_iTaskStatus = TASKSTATUS_RUNNING; 
@@ -4021,7 +4016,7 @@ void CMonsterCtSwat::StartTask( Task_t *pTask )
     }
 }
 
-void CMonsterCtSwat::StopFollowing( BOOL clearSchedule )
+void CCounterTerrorist::StopFollowing( BOOL clearSchedule )
 {
     // 1. 審查當前隨行目標，確保其有效且該目標是玩家
     if ( m_hTargetEnt != nullptr && m_hTargetEnt->IsPlayer() )
@@ -4050,7 +4045,7 @@ void CMonsterCtSwat::StopFollowing( BOOL clearSchedule )
     }
 }
 
-int CMonsterCtSwat::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+int CCounterTerrorist::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
 {
     // 1. 受擊記憶清理：洗掉舊的硬直旗標 (bits_MEMORY_FLINCHED = 0x02)
     m_afMemory &= ~0x02;
@@ -4079,7 +4074,7 @@ int CMonsterCtSwat::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker,
     return CSquadMonster::TakeDamage( pevInflictor, pevAttacker, flDamage, bitsDamageType );
 }
 
-bool CMonsterCtSwat::ValidateActivation( int entry )
+bool CCounterTerrorist::ValidateActivation( int entry )
 {
     // =========================================================================
     // ?? 戰術移動可行性審查矩陣

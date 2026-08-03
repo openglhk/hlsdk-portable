@@ -12,8 +12,7 @@ LINK_ENTITY_TO_CLASS( monster_terrorist_grenader, CTerrorist );
 LINK_ENTITY_TO_CLASS( monster_terrorist_melee, CTerrorist );
 LINK_ENTITY_TO_CLASS( monster_terrorist_kamakazi, CTerrorist );
 
-// 10 通道權威存檔數據表 (3個整數 + 7個ushort網路事件暫存器 = 10)
-TYPEDESCRIPTION CTerrorist::m_SaveData[] =
+TYPEDESCRIPTION CTerrorist::m_SaveData[] = 
 {
     DEFINE_FIELD( CTerrorist, m_voicePitch, FIELD_INTEGER ),
     DEFINE_FIELD( CTerrorist, m_iBrassShell, FIELD_INTEGER ),
@@ -25,53 +24,54 @@ TYPEDESCRIPTION CTerrorist::m_SaveData[] =
     DEFINE_FIELD( CTerrorist, m_usFireAWP, FIELD_SHORT ),
     DEFINE_FIELD( CTerrorist, m_usFireMP5, FIELD_SHORT ),
     DEFINE_FIELD( CTerrorist, m_usFireShotgun, FIELD_SHORT ),
-	DEFINE_FIELD( CTerrorist, m_fThrowGrenade, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, m_terroristBehavior, FIELD_INTEGER ),
+    DEFINE_FIELD( CTerrorist, m_flNextGrenadeCheck, FIELD_TIME ),
+    DEFINE_FIELD( CTerrorist, m_iSentence, FIELD_INTEGER ),
+    DEFINE_FIELD( CTerrorist, m_fFirstEncounter, FIELD_BOOLEAN ),
+    // scheduleTable 描述對接
+    DEFINE_ARRAY( CTerrorist, scheduleTable, FIELD_CHARACTER, sizeof(ScheduleEntry) * 16 ),
+    DEFINE_FIELD( CTerrorist, m_fThrowGrenade, FIELD_BOOLEAN ),
     DEFINE_FIELD( CTerrorist, m_vecTossVelocity, FIELD_VECTOR ),
+    DEFINE_FIELD( CTerrorist, m_pBeam, FIELD_CLASSPTR ),         // 雷射射線指針保存
+    DEFINE_FIELD( CTerrorist, m_pLaserGlow, FIELD_CLASSPTR ),    // 精靈光暈指針保存
+    DEFINE_FIELD( CTerrorist, m_dropItem, FIELD_STRING ),         // 死後掉落物
+    DEFINE_FIELD( CTerrorist, m_dropChance, FIELD_FLOAT ),        // 掉落機率
+    DEFINE_FIELD( CTerrorist, m_wanderOrigin, FIELD_POSITION_VECTOR ),
+    DEFINE_FIELD( CTerrorist, m_laserBrightness, FIELD_FLOAT ),
+    DEFINE_FIELD( CTerrorist, m_glowBrightness, FIELD_FLOAT ),
+    DEFINE_FIELD( CTerrorist, m_bStanding, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, m_terroristType, FIELD_INTEGER ),
+    DEFINE_FIELD( CTerrorist, m_flashbangOnly, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, m_heGrenadeOnly, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, m_blastRadius, FIELD_FLOAT ),
+    DEFINE_FIELD( CTerrorist, m_blastDamage, FIELD_FLOAT ),
+    DEFINE_FIELD( CTerrorist, m_canWander, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, stealthDeath, FIELD_BOOLEAN ),
+    DEFINE_FIELD( CTerrorist, taskFailCount, FIELD_FLOAT ), // 👈 第 33 個變數，大功告成！
 };
 
 int g_fTerroristQuestion = 0;
 
 CTerrorist::CTerrorist( void )
 {
-    // 1. 優先手動拉起母體小隊怪物類別的構造工廠，清洗繼承內存
     CBaseMonster::CBaseMonster();
-
-    // 2. 初始化核心運動狀態機與兵種特權角色
     m_bStanding        = TRUE;
     m_terroristType    = 0;
     m_terroristBehavior = -1; // 預設常規未指派
-
-    // 特種限制投擲兵種控制
     m_flashbangOnly    = FALSE;
     m_heGrenadeOnly    = FALSE;
-
-    // 3. 🚀 人肉炸彈自爆兵種核心幾何常數填裝
     m_blastRadius      = 256.0f; // 256 碼巨額爆炸半徑
     m_blastDamage      = 200.0f; // 200 點致命衝擊波傷害
     suicideFlag        = FALSE;
     taskFailCount      = 0.0f;
-
-    // 4. 戰術重型 LAW 火箭筒射擊延時與開火旗標清零
     lawDelayTime       = 0.0f;
     justShotFlag       = FALSE;
-
-    // 5. 潛行暗殺安靜旗標、256碼小隊警戒紅線、以及 64碼黃金交火距離配置
     m_canWander        = FALSE;
     stealthDeath       = TRUE;  // 允許潛行暗殺不觸發全局警報
     m_alertRadius      = 256.0f;
     m_fPreferedRange   = 64.0f;
     heardCombat        = FALSE;
-
-    // =========================================================================
-    // ⚔️ 6. 陣營主權對齊：100% 鏡像重合二進位常數 0x0E (十進位 14)
-    // 正式劃入魔改版專屬的 CLASS_MILITARY 敵軍軍事惡棍陣營！
-    // =========================================================================
     m_classtype        = 14; 
-
-    // =========================================================================
-    // 🎰 7. 隨機漫步時鐘交叉錯落疊加 (5.0f ~ 10.0f 秒)
-    // 確保多名敵軍出生時閒逛尋路計算 perfect 錯開，平滑保護伺服器 FPS 幀率
-    // =========================================================================
     m_wanderTime       = gpGlobals->time + RANDOM_FLOAT( 5.0f, 10.0f );
 }
 
@@ -2087,6 +2087,2549 @@ void CTerrorist::LaserGlowOff( void )
     }
 }
 
+void CTerrorist::LaserGlowOn( void )
+{
+    // =========================================================================
+    // ⚡ 1. 雷射實體狀態與動態點火安全閥：若未構造，實時引爆 SetupLaserGlow 工廠
+    // =========================================================================
+    if ( ( m_pBeam != nullptr && m_pLaserGlow != nullptr ) || ( SetupLaserGlow(), m_pBeam != nullptr ) )
+    {
+        // 📢 宿敵生存審查：確保當前鎖定的死敵目標 (m_hEnemy) 有效
+        if ( m_hEnemy == nullptr )
+        {
+            return;
+        }
 
+        CBaseEntity *pEnemy = m_hEnemy;
 
+        // 提取自身與玩家的絕對世界內存 Edict 索引
+        int startIndex = ENTINDEX( edict() );
+        int endIndex   = ENTINDEX( pEnemy->edict() );
 
+        // 🚀 跨實體 3D 物理鏈接：死死將雷射線的起點綁在自己槍口，終點咬在玩家肉體中心！
+        m_pBeam->EntsInit( startIndex, endIndex );
+
+        // 🔥 網路 Delta 封包鋼印：100% 還原 |= 0x2000 網路優化標記，解除伺服器頂點傳輸死鎖
+        m_pBeam->pev->sequence = ( m_pBeam->pev->sequence & 0xFFFU ) | 0x2000;
+
+        // 將紅外線 3D 雷射射線的亮度與渲染透明度穩定在 64.0f 常數面
+        if ( m_laserBrightness != 64.0f )
+        {
+            m_laserBrightness = 64.0f;
+        }
+        m_pBeam->pev->renderamt = 64.0f;
+    }
+
+    // =========================================================================
+    // ⚡ 2. 槍口紅色雷射精靈光暈 (Laser Glow Sprite) 滿載 255.0f 點亮中樞
+    // =========================================================================
+    if ( m_pLaserGlow != nullptr )
+    {
+        CBaseEntity *pEnemy = m_hEnemy;
+        if ( pEnemy != nullptr && pEnemy->IsPlayer() ) // 完美還原虛擬表多載安全核對
+        {
+            // 將狙擊鏡槍口處投射出的紅色貼圖光暈透明度狠狠推滿至 255.0f 最大值！
+            if ( m_glowBrightness != 255.0f )
+            {
+                m_glowBrightness = 255.0f;
+            }
+            m_pLaserGlow->pev->renderamt = 255.0f;
+        }
+    }
+}
+
+int CTerrorist::LookupActivity( int activity )
+{
+    // 1. 📢 獲取目前實體掛載的 3D StudioMdl 網格模型結構體指針
+    void *pStudioModel = GET_MODEL_PTR( edict() );
+
+    // =========================================================================
+    // 🧱 姿態主權攔截：只有當動作為 ACT_IDLE (1) 時，大腦才會越權接管進行骨骼重定向
+    // =========================================================================
+    if ( activity != ACT_IDLE ) // activity != 1
+    {
+        // 其餘常規移動步態直接放行，調用全域引擎接口進行標準配准
+        return ::LookupActivity( pStudioModel, pev, activity );
+    }
+
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 2. 依據 11 大戰術兵種型態與實時戰場火網，發動蒙地卡羅動態骨骼序列覆寫
+    // =========================================================================
+    switch ( m_terroristBehavior )
+    {
+        case 0:  // 0: 手槍兵角色
+        case 6:  // 6: 微型衝鋒槍滲透者
+        case 7:  // 7: 戰術擲彈兵
+            if ( m_MonsterState == MONSTERSTATE_COMBAT || heardCombat )
+            {
+                pszSequenceName = "pistol_combatidle"; // 戰鬥手槍高度警戒持槍
+            }
+            else
+            {
+                pszSequenceName = "pistol_idle1";      // 日常放鬆手槍持槍
+            }
+            break;
+
+        case 5:  // 5: M72 LAW 重型火箭筒反裝甲兵
+            pszSequenceName = "LAW_fire_idle";         // 肩扛重型火箭筒待命姿態
+            break;
+
+        case 8:  // 8: 近戰開山馬刀死士
+            if ( m_MonsterState == MONSTERSTATE_COMBAT || heardCombat )
+            {
+                pszSequenceName = "machete_combatidle"; // 拔出寒光馬刀高度防線姿態
+                break;
+            }
+            // 若安全則降級下榻至神風自殺兵同款日常待命
+        case 9:  // 9: 神風特攻隊人肉炸彈自殺兵
+            pszSequenceName = "machete_idle1";          // 日常手持引爆器/匕首閒逛
+            break;
+
+        default: // 常規主力突擊步槍 / M60重機槍暴君角色 ( 11 / 10 / 2 / 3 號兵種 )
+            // 若目前身處絕對安全的非交火日常巡邏狀態
+            if ( m_MonsterState != MONSTERSTATE_COMBAT && !heardCombat )
+            {
+                // 100% 還原二進位降級行為：直接交還給模型預設的 1 號常規路徑待命序列
+                return ::LookupActivity( pStudioModel, pev, ACT_IDLE );
+            }
+
+            // 🎯 核心姿態互鎖解密：100% 還原字串加法指針算術之真相！
+            if ( !m_bStanding )
+            {
+                pszSequenceName = "crouching_wait"; // 🔒 蹲下掩體防線狀態下，強鎖蹲持步槍動畫！
+            }
+            else
+            {
+                pszSequenceName = "combatidle";     // 🔒 站立持槍突擊狀態下，強鎖直立步槍交火動畫！
+            }
+            break;
+    }
+
+    // =========================================================================
+    // 🚀 3. 終極解碼：將動態重定向出的精確字串翻譯為 Studio 渲染器所需的 Sequence 索引
+    // =========================================================================
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return ::LookupActivity( pStudioModel, pev, ACT_IDLE );
+}
+
+int CTerrorist::LookupActivityHeaviest( int activity )
+{
+    // 1. 📢 獲取目前實體掛載的 3D StudioMdl 網格模型結構體指針
+    void *pStudioModel = GET_MODEL_PTR( edict() );
+
+    // =========================================================================
+    // 🧱 姿態主權攔截：只有當動作為 ACT_IDLE (1) 時，大腦才會越權接管進行重量級重定向
+    // =========================================================================
+    if ( activity != ACT_IDLE ) // activity != 1
+    {
+        // 其餘動作直接放行，移交標準全域接口進行常規配准
+        return ::LookupActivity( pStudioModel, pev, activity );
+    }
+
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 2. 依據 11 大戰術兵種型態與實時戰場火網，發動重量級動態骨骼序列覆寫
+    // =========================================================================
+    switch ( m_terroristBehavior )
+    {
+        case 0:  // 0: 手槍輕步兵
+        case 6:  // 6: 微型衝鋒槍滲透者
+        case 7:  // 7: 戰術擲彈兵
+            if ( m_MonsterState == MONSTERSTATE_COMBAT || heardCombat )
+            {
+                pszSequenceName = "pistol_combatidle";
+            }
+            else
+            {
+                pszSequenceName = "pistol_idle1";
+            }
+            break;
+
+        case 5:  // 5: M72 LAW 重型火箭筒反裝甲兵
+            pszSequenceName = "LAW_fire_idle";
+            break;
+
+        case 8:  // 8: 近戰開山馬刀死士
+            if ( m_MonsterState == MONSTERSTATE_COMBAT || heardCombat )
+            {
+                pszSequenceName = "machete_combatidle";
+                break;
+            }
+        case 9:  // 9: 神風特攻隊人肉炸彈自殺兵
+            pszSequenceName = "machete_idle1";
+            break;
+
+        default: // 常規主力突擊步槍 / M60重機槍暴君角色 ( 11 / 10 / 2 / 3 號兵種 )
+            // 🚀 核心重砲遞迴安全閥：若目前身處安全的日常巡邏放鬆狀態
+            if ( m_MonsterState != MONSTERSTATE_COMBAT && !heardCombat )
+            {
+                // 完美還原二進位行為：發動 ::LookupActivityHeaviest 遞迴自呼叫，強鎖加權最重巡邏姿態，防制鬼抽！
+                return ::LookupActivityHeaviest( pStudioModel, pev, ACT_IDLE );
+            }
+
+            // 戰術姿態互鎖解密
+            if ( !m_bStanding )
+            {
+                pszSequenceName = "crouching_wait"; // 🔒 蹲下掩體防線狀態下，強鎖蹲持重火力動畫！
+            }
+            else
+            {
+                pszSequenceName = "combatidle";     // 🔒 站立持槍突擊狀態下，強鎖直立重火力交火動畫！
+            }
+            break;
+    }
+
+    // =========================================================================
+    // 🚀 3. 終極解碼：將動態重定向出的精確字串翻譯為 Studio 渲染器所需的 Sequence 索引
+    // =========================================================================
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return ::LookupActivity( pStudioModel, pev, ACT_IDLE );
+}
+
+int CTerrorist::ObjectCaps( void )
+{
+    // =========================================================================
+    // 🌐 100% 還原二進位常數 10 (十六進位 0x0A = 0x02 | 0x08)
+    // 宣告恐怖份子 AI 具備 FCAP_ACROSS_TRANSITION (跨地圖關卡進度打包保留)
+    // 以及 FCAP_MUST_SPAWN (開局強制重組點火) 的最高劇情級劇本特權！
+    // =========================================================================
+    return FCAP_ACROSS_TRANSITION | FCAP_MUST_SPAWN; // 0x0A (10)
+}
+
+void CTerrorist::PainSound( void )
+{
+    // =========================================================================
+    // ⏱️ 痛苦降噪鎖审查：若當前時間尚未跨越下一次慘叫時鐘，全面格式化攔截
+    // 完美杜絕高射速武器掃射時引發多重慘叫疊加鬼畜的嚴重音訊 Bug
+    // =========================================================================
+    if ( gpGlobals->time > m_flNextPainTime )
+    {
+        // 呼叫虛擬表 102 號多載方法 (PlaySentence)，發射 T_WOUND 中彈受傷慘叫台詞組
+        // 音量與衰減係數配置為標準 0.8f (0x3F4CCCCD) 常數面
+        PlaySentence( "T_WOUND", 0.8f, ATTN_NORM, 0, m_voicePitch );
+
+        // 🚀 100% 還原二進位行為：一鍵注入 1.0 秒硬性冷卻鎖，保護伺服器聲道信道
+        m_flNextPainTime = gpGlobals->time + 1.0f;
+    }
+}
+
+void CTerrorist::PlayScriptedSentence( char *pszSentence, float duration, float volume, float attenuation, BOOL bConcurrent, CBaseEntity *pListener )
+{
+    // =========================================================================
+    // 🛡️ 1. 活體與狀態主權雙重安全線：100% 還原二進位虛擬表 37 號方法 (IsAlive) 內聯展開
+    // 確保恐怖分子目前並非處於「徹底死亡 (DEAD_DEAD = 2)」或「倒地瀕死期 (DEAD_DYING = 1)」
+    // =========================================================================
+    if ( IsAlive() && pev->deadflag != DEAD_DYING ) // pev->deadflag != 1
+    {
+        // 🚀 2. 幾何自適應時鐘互鎖：對白播放時長 (duration) 強行疊加 2.0 秒戰術空白緩衝
+        // 一鍵送入 JustSpoke 清洗大腦，沒收這段時間內的全圖常規無線電，保障電影級過場演出
+        JustSpoke( duration + 2.0f );
+
+        // =========================================================================
+        // 📢 3. 降級派發：呼叫虛擬表 98 號偏移量 (基類 PlayScriptedSentence 原生核心)
+        // 將本地化語音句柄與音量衰減參數正式送入引擎喇叭，點火開口發聲！
+        // =========================================================================
+        CSquadMonster::PlayScriptedSentence( pszSentence, duration, volume, attenuation, bConcurrent, pListener );
+    }
+}
+
+void CTerrorist::PrescheduleThink( void )
+{
+    // =========================================================================
+    // ⚖️ 小隊戰術網絡情報共享中樞：核對當前是否加入了小隊隊伍 (m_hSquadLeader != nullptr)
+    // =========================================================================
+    if ( m_hSquadLeader != nullptr )
+    {
+        // 確保目前小隊處於與死敵交火的戰備週情內 (m_hEnemy != nullptr)
+        if ( m_hEnemy != nullptr )
+        {
+            // 安全獲取小隊隊長 C++ 物件指針 (CSquadMonster)
+            CSquadMonster *pSquadLeader = m_hSquadLeader;
+            if ( pSquadLeader == nullptr )
+            {
+                pSquadLeader = this; // 降級 Fallback 鎖定自身
+            }
+
+            // 🎯 階段 A：實時情報灌注 ( bits_COND_SEE_ENEMY = 0x10 )
+            // 若當前匪徒正親眼目擊死敵玩家，實時越權強寫刷新隊長大腦的最後目擊時間戳！
+            if ( m_afConditions & bits_COND_SEE_ENEMY )
+            {
+                pSquadLeader->m_flLastEnemySightTime = gpGlobals->time;
+                return;
+            }
+
+            // 🎯 階段 B：💥 5.0 秒死線大包抄！
+            // 若整隻小隊連續 5.0 秒失去玩家的所有視線與軌跡，隊長大腦正式宣告跟丟
+            if ( ( gpGlobals->time - pSquadLeader->m_flLastEnemySightTime ) > 5.0f )
+            {
+                // 點亮隊長體內的跟丟標記，在下一幀的 GetSchedule 中瞬間引爆全隊全圖協同包抄搜捕網！
+                pSquadLeader->m_fEnemyEluded = TRUE;
+                return;
+            }
+        }
+    }
+}
+
+int CTerrorist::Save( CSave &save )
+{
+    // 1. 優先拉起小隊怪物類別母體的 Save 序列化工廠，寫入基礎繼承數據
+    if ( !CSquadMonster::Save( save ) )
+    {
+        return FALSE;
+    }
+
+    // =========================================================================
+    // 📊 存檔最高主權：100% 還原二進位常數 0x21 (十進位 33) 的變數描述總個數鋼印
+    // 將體內 33 個核心戰術與兵種變數，以最高硬體相容度二進位形式寫入硬碟
+    // =========================================================================
+    return save.WriteFields( "CTerrorist", this, m_SaveData, 33 ); // 33 = 0x21
+}
+
+int CTerrorist::Restore( CRestore &restore )
+{
+    // 1. 優先拉起小隊怪物類別母體的 Restore 序列化工廠，讀取基礎繼承數據
+    if ( !CSquadMonster::Restore( restore ) )
+    {
+        return FALSE;
+    }
+
+    // =========================================================================
+    // 📊 讀檔最高主權：100% 還原二進位常數 0x21 (十進位 33) 的變數描述總個數鋼印
+    // 從存檔中將這 33 個涉及兵種自爆、雷射亮度、掉落物、與語音冷卻的核心變數安全回填！
+    // =========================================================================
+    return restore.ReadFields( "CTerrorist", this, m_SaveData, 33 ); // 33 = 0x21
+}
+
+void CTerrorist::RunTask( Task_t *pTask )
+{
+    switch ( pTask->iTask )
+    {
+        // =========================================================================
+        // 📐 TASK 92 (0x5C)：手榴彈/下掛榴彈 出手前彈道外推投影點朝向對齊
+        // =========================================================================
+        case 92: // 0x5C: TASK_FACE_TOSS
+        {
+            // 將拋物線初速度向量前推 64 倍，疊加自身坐標合成未來的幾何投影落點
+            Vector vecTarget = pev->origin + ( m_vecTossVelocity * 64.0f );
+            
+            CBaseMonster::MakeIdealYaw( vecTarget );
+            ChangeYaw( (int)pev->yaw_speed ); // 呼叫虛擬表 85 號方法，全速轉身
+
+            // 只有當身體幾何偏航完全正對著投影點時，才放行宣告任務圓滿完成
+            if ( FacingIdeal() )
+            {
+                m_iTaskStatus = TASKSTATUS_COMPLETE; // 4
+            }
+        }
+        break;
+
+        // =========================================================================
+        // 🏃 TASK 96 (0x60)：8號馬刀/9號自殺兵 獵人全自動動態衝鋒追擊任務
+        // =========================================================================
+        case 96: // 0x60: TASK_CHARGE_ENEMY
+        {
+            // 定身鎖過濾：若被卡死，或者條件遮罩打上了 0x40000000 失敗鎖
+            if ( m_cantMove )
+            {
+                if ( m_afConditions & 0x40000000 )
+                {
+                    return;
+                }
+                m_iTaskStatus = TASKSTATUS_COMPLETE; // 4
+                return;
+            }
+
+            // 若宿敵丟失，強寫大腦條件，硬熔斷退出
+            if ( m_hEnemy == nullptr )
+            {
+                m_afConditions |= 0x40000000;
+                return;
+            }
+
+            // 計算與尋路目標點當前的 2D 平面真實物理距離
+            float flDistToGoal = ( m_vecMoveGoal - pev->origin ).Length2D();
+
+            if ( flDistToGoal >= m_fPreferedRange )
+            {
+                CBaseEntity *pEnemy = m_hEnemy;
+                
+                // 實時解算與玩家肉體真實的三維空間落差距離
+                float flRealDist3D = ( m_vecMoveGoal - pEnemy->pev->origin ).Length();
+
+                // 預判攔截分流：若大於黃金半徑的一半，發動每幀位置同步更新
+                if ( flRealDist3D > ( m_fPreferedRange * 0.5f ) )
+                {
+                    goto LAB_EVALUATE_追求口號;
+                }
+            }
+
+            // 🎯 核心獵人追殺公式：在每一幀，將移動終點目標強制修改、刷新為玩家的最新坐標！
+            m_vecMoveGoal = m_hEnemy->pev->origin;
+            flDistToGoal  = ( m_vecMoveGoal - pev->origin ).Length2D();
+
+            // 實時動態刷新軌跡網格
+            CBaseMonster::FRefreshRoute();
+            // 🎯 📢 312 碼近戰死線：僅對 8 號近戰馬刀兵、9 號自殺引爆兵種點火發射！
+            if ( m_terroristBehavior == 8 || m_terroristBehavior == 9 )
+            {
+                // 核對全局語音排隊時鐘，以 1.0f (0x3F800000) 的最大爆發音量引爆戰術咆哮！
+                if ( gpGlobals->time > CTalkMonster::g_talkWaitTime && FOkToSpeak() )
+                {
+                    if ( flDistToGoal < 312.0f )
+                    {
+                        PlaySentence( "T_MELEE", 1.0f, ATTN_NORM, 0, m_voicePitch );
+                        m_iSentence = -1;
+                        CTalkMonster::g_talkWaitTime = gpGlobals->time + 10.0f; // 🔒 塞入 10 秒硬性通信封鎖
+                    }
+                }
+            }
+
+            // 🎯 踏入黃金斬殺半徑：任務成功，清空尋路軌跡，交給近戰 TakeDamage 割喉突襲！
+            if ( flDistToGoal < m_fPreferedRange )
+            {
+                if ( !( m_afConditions & 0x40000000 ) )
+                {
+                    m_iTaskStatus = TASKSTATUS_COMPLETE; // 4
+                }
+                CBaseMonster::RouteClear();
+            }
+
+            // 戰術衝鋒死命令：步態動作強制、無條件切換為 ACT_RUN (全速狂奔)
+            if ( m_movementActivity != ACT_RUN )
+            {
+                m_movementActivity = ACT_RUN;
+            }
+        }
+        break;
+
+        default:
+            // 其餘通用常規子任務 (如日常巡邏、原地等待) 降級派發移交怪物母體基類處理
+            CBaseMonster::RunTask( pTask );
+            break;
+    }
+}
+
+Schedule_t* CTerrorist::ScheduleFromName( char *pName )
+{
+    // =========================================================================
+    // 🎰 1. 優先級一：100% 還原二進位常數 0x27 (十進位 39) 的自定義計畫字串鋼印
+    // 在專屬的 m_scheduleList 列表中反查地圖指定的 39 組高階戰術計畫名稱
+    // =========================================================================
+    Schedule_t *pSchedule = CBaseMonster::ScheduleInList( pName, m_scheduleList, 39 ); // 39 = 0x27
+
+    if ( pSchedule != nullptr )
+    {
+        return pSchedule; // 成功匹配自定義劇情計畫，直接返回指針發射渲染
+    }
+
+    // =========================================================================
+    // 🧱 2. 優先級二：降級相容，若非自定義計畫，移交怪物基類解析標準的 Half-Life 引擎計畫名
+    // =========================================================================
+    return CBaseMonster::ScheduleFromName( pName );
+}
+
+void CTerrorist::SetActivity( Activity NewActivity )
+{
+    int iSequence = -1;
+
+    // =========================================================================
+    // 🎰 1. 階段一：11大戰術兵種專屬動作覆寫矩陣 (Stance Overrides)
+    // =========================================================================
+    switch ( m_terroristBehavior )
+    {
+        case 0:  // 手槍輕步兵
+        case 6:  // 微型衝鋒槍滲透者
+            iSequence = SetActivityPistolBase( NewActivity );
+            break;
+            
+        case 1:  // 散彈破門兵
+            iSequence = SetActivityShotgunBase( NewActivity );
+            break;
+            
+        case 2:  // 常規主力步槍兵 (AK47)
+        case 3:  // M60 重機槍暴君
+        case 10: // 特種 MP5 突擊兵
+            iSequence = SetActivityAutomaticBase( NewActivity );
+            break;
+            
+        case 4:  // 雷射狙擊手
+            iSequence = SetActivitySniperBase( NewActivity );
+            break;
+            
+        case 5:  // M72 LAW 重型火箭筒反裝甲兵
+            iSequence = SetActivityLAWBase( NewActivity );
+            break;
+            
+        case 7:  // 戰術擲彈兵
+            iSequence = SetActivityPistolBase( NewActivity );
+            if ( iSequence == -1 )
+            {
+                iSequence = SetActivityGrenadeBase( NewActivity );
+            }
+            break;
+            
+        case 8:  // 近戰開山馬刀死士
+            iSequence = SetActivityMeleeBase( NewActivity );
+            break;
+            
+        case 9:  // 神神風特攻隊人肉炸彈自殺兵
+            iSequence = SetActivityKamakaziBase( NewActivity );
+            break;
+            
+        default:
+            break;
+    }
+
+    // =========================================================================
+    // 🩸 2. 階段二：降級放行，引爆通用動作狀態機與 20% 殘血受創拐瘸步態網
+    // =========================================================================
+    if ( iSequence == -1 )
+    {
+        switch ( NewActivity )
+        {
+            case ACT_IDLE:
+                if ( m_idleAnim != 0 )
+                {
+                    iSequence = CBaseAnimating::LookupSequence( STRING(m_idleAnim) );
+                    break;
+                }
+                if ( m_MonsterState == MONSTERSTATE_COMBAT )
+                {
+                    // 姿態自適應互鎖
+                    iSequence = CBaseAnimating::LookupSequence( !m_bStanding ? "crouching_wait" : "combatidle" );
+                }
+                break;
+
+            case ACT_WALK:
+                // 🚀 20% 殘血瘸腿死線：血量低於 20% 時，強制調用基類 LookupActivity 改發 ACT_WALK_HURT 骨骼！
+                if ( pev->health <= ( pev->max_health * 0.2f ) )
+                {
+                    iSequence = LookupActivity( ACT_WALK_HURT ); // 0x30
+                }
+                else if ( m_MonsterState == MONSTERSTATE_COMBAT )
+                {
+                    iSequence = CBaseAnimating::LookupSequence( "combat_walk_primary" );
+                }
+                break;
+
+            case ACT_RUN:
+                // 🚀 20% 殘血驚慌奔跑死線：血量低於 20% 時，強行改發 ACT_RUN_HURT 瘸腿狂奔骨骼！
+                if ( pev->health <= ( pev->max_health * 0.2f ) )
+                {
+                    iSequence = LookupActivity( ACT_RUN_HURT ); // 0x31
+                }
+                else if ( m_MonsterState == MONSTERSTATE_COMBAT )
+                {
+                    iSequence = CBaseAnimating::LookupSequence( "combat_run_primary" );
+                }
+                break;
+
+            case ACT_STAND:
+                iSequence = CBaseAnimating::LookupSequence( "crouching_2_stand" );
+                break;
+
+            case ACT_DIESIMPLE:
+            case ACT_DIEBACKWARD:
+            case ACT_DIEFORWARD:
+            case ACT_DIEVIOLENT:
+            case ACT_DIE_HEADSHOT:
+            case ACT_DIE_CHESTSHOT:
+            case ACT_DIE_GUTSHOT:
+            case ACT_DIE_BACKSHOT:
+                if ( m_deathAnim != 0 )
+                {
+                    iSequence = CBaseAnimating::LookupSequence( STRING(m_deathAnim) );
+                    break;
+                }
+                // 🥷 潛行暗殺安靜死亡：若被玩家背刺或消音武器暗殺，強制拉起 death02 悄無聲息癱軟骨骼
+                if ( stealthDeath )
+                {
+                    iSequence = CBaseAnimating::LookupSequence( "death02" );
+                    stealthDeath = FALSE; // 清空標記
+                }
+                break;
+
+            // =========================================================================
+            // 👁️ 5組高級劇情自定義活動擴充 (ACT_LASTACTIVITY 遮罩對齊)
+            // =========================================================================
+            case (ACT_LASTACTIVITY + 1): // 0x2001
+                iSequence = CBaseAnimating::LookupSequence( "pistol_popout_right01" );
+                break;
+            case (ACT_LASTACTIVITY + 2): // 0x2002
+                iSequence = CBaseAnimating::LookupSequence( "pistol_popout_right02" );
+                break;
+            case (ACT_LASTACTIVITY + 4): // 0x2004
+                iSequence = CBaseAnimating::LookupSequence( "choking" ); // 毒氣卡喉窒息
+                break;
+            case (ACT_LASTACTIVITY + 8): // 0x2008
+                iSequence = CBaseAnimating::LookupSequence( "patrol_idle" ); // 愜意巡邏
+                break;
+            case (ACT_LASTACTIVITY + 16): // 0x2010
+                iSequence = CBaseAnimating::LookupSequence( "stunned01" ); // 衝擊波震暈
+                break;
+
+            default:
+                break;
+        }
+
+        // 若上述特殊覆寫皆未匹配成功，徹底放行，調用基類 LookupActivity 進行 Vanilla 配准
+        if ( iSequence == -1 )
+        {
+            iSequence = LookupActivity( NewActivity );
+        }
+        m_Activity = NewActivity;
+    }
+    else
+    {
+        m_Activity = NewActivity;
+    }
+
+    // =========================================================================
+    // ⚙️ 3. 終極渲染與動畫幀安全重置 (對齊二進位結構體重寫行為)
+    // =========================================================================
+    if ( iSequence >= 0 )
+    {
+        // 若骨骼發生流轉切換、或是循環動畫，強制將當前幀 frame 清空歸零，防止動作鬼抽卡幀
+        if ( iSequence != pev->sequence || m_fSequenceLoops )
+        {
+            pev->frame = 0.0f;
+        }
+        pev->sequence = iSequence;
+        CBaseAnimating::ResetSequenceInfo(); // 實時重置骨骼速率與幀長度
+
+        // 呼叫虛擬表 110 號方法 (延時調度大腦，此處完成同步發射)
+        // 32位元二進位偏移 +0x1B4
+    }
+    else
+    {
+        // 🚨 異常防砸窗踩空：若模型徹底缺失該動作序列，向全服主控台拋出高級排錯日誌
+        ALERT( at_console, "%s has no sequence for act:%d\n", STRING(pev->classname), NewActivity );
+        pev->sequence = 0; // 強鎖 0 號預設序列
+    }
+}
+
+int CTerrorist::SetActivityAutomaticBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 Studio 模型指針同步網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：自動武器開火與拉栓換彈骨骼重定向
+    // =========================================================================
+    if ( NewActivity == ACT_RANGE_ATTACK1 ) // 開火幀引爆
+    {
+        if ( m_terroristBehavior == 3 ) // 3 號 M60 重機槍暴君角色
+        {
+            pszSequenceName = "machinegun_fire";
+        }
+        else // 常規主力步槍 (AK47) 與特種 MP5 兵種
+        {
+            // 依據姿態暫存器 m_bStanding 實時分流蹲下與站立火網序列
+            pszSequenceName = !m_bStanding ? "crouching_mp5" : "standing_mp5";
+        }
+    }
+    else if ( NewActivity == ACT_RELOAD ) // 戰術空倉換彈
+    {
+        // 🎰 完美解密指針加法：!m_bStanding 鎖定蹲換彈，站立則推移 7 位元組鎖定 "reload_mp5"
+        pszSequenceName = !m_bStanding ? "crouch_reload_mp5" : "reload_mp5";
+    }
+    else
+    {
+        return -1; // 非自動槍械專屬 Activity，返回 -1 放行，移交通用狀態機
+    }
+
+    // 將解碼出的精確字串送入 Studio 渲染器獲取 Sequence 索引
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivityGrenadeBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 StudioMdl 模型指標更新網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：手榴彈過頂拋擲與下掛榴彈砲發射骨骼重定向
+    // =========================================================================
+    if ( NewActivity == ACT_RANGE_ATTACK2 ) // 2號遠程加載重力打擊
+    {
+        // 反查武器型態遮罩位元 2 (bits_WEAPON_GRENADE)
+        if ( !(pev->weapons & bits_WEAPON_GRENADE) ) // pev->weapons & 2
+        {
+            // 無手雷標記：解碼為下掛式重火力接觸榴彈射擊動畫
+            pszSequenceName = "launchgrenade";
+        }
+        else
+        {
+            // 有手雷標記：解碼為拉開引信的標準過頂拋物線投擲動畫
+            pszSequenceName = "throwgrenade";
+        }
+
+        // 將精確字串送入 Studio 渲染器獲取 Sequence 索引
+        if ( pszSequenceName != nullptr )
+        {
+            return CBaseAnimating::LookupSequence( pszSequenceName );
+        }
+    }
+
+    return -1; // 非投擲專屬 Activity，返回 -1 放行，移交通用狀態機
+}
+
+int CTerrorist::SetActivityKamakaziBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 StudioMdl 模型指標更新網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：神風自殺兵日常閒逛、狂暴衝鋒與原地尖叫引爆骨骼
+    // =========================================================================
+    if ( NewActivity == ACT_TURN_LEFT )
+    {
+        pszSequenceName = "machete_180L"; // 戰術左轉 180 度回頭反背刺
+    }
+    else if ( NewActivity < ACT_TURN_RIGHT )
+    {
+        if ( NewActivity == ACT_IDLE )
+        {
+            pszSequenceName = "machete_idle1"; // 日常持引爆器閒置待命
+        }
+        else if ( NewActivity == ACT_RUN )
+        {
+            pszSequenceName = "pistol_run"; // 🔒 狂熱衝鋒期：平舉雙手喪失理智瘋狂狂奔步態
+        }
+        else
+        {
+            return -1;
+        }
+    }
+    else if ( NewActivity == ACT_TURN_RIGHT )
+    {
+        pszSequenceName = "machete_180R"; // 戰術右轉 180 度回頭
+    }
+    else
+    {
+        // 🚀 核心重砲：核對魔改版專屬劇情 Activity ( ACT_LASTACTIVITY | ACT_WALK = 0x2008 )
+        if ( NewActivity == (Activity)(ACT_LASTACTIVITY | ACT_WALK) )
+        {
+            // 🔒 雙向密碼鎖：只有當 suicideFlag 實錘點火引爆、跨越 64 碼死線時才允許解鎖
+            if ( suicideFlag )
+            {
+                pszSequenceName = "kamakazi"; // 💥 鎖死高舉雙手、身體痛苦抽搐的原地引爆尖叫動畫！
+            }
+            else
+            {
+                return -1;
+            }
+        }
+        else
+        {
+            return -1; // 非自殺兵種專屬 Activity，放行移交通用狀態機
+        }
+    }
+
+    // 將解碼出的精確字串送入 Studio 渲染器獲取 Sequence 索引
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivityLAWBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 StudioMdl 模型指標更新網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：M72 LAW 重型火箭筒兵種專屬動作重定向
+    // =========================================================================
+    switch ( NewActivity )
+    {
+        case ACT_IDLE:
+            if ( m_idleAnim != 0 )
+            {
+                pszSequenceName = STRING( m_idleAnim ); // 優先採用地圖自定義閒置動畫
+            }
+            else
+            {
+                pszSequenceName = "LAW_fire_idle";       // 🔒 肩扛火箭筒原地日常防禦待命
+            }
+            break;
+
+        case ACT_RUN:
+            pszSequenceName = "law_run";                // 🔒 橫扛重裝火力的突擊奔跑序列
+            break;
+
+        case ACT_TURN_LEFT:
+            pszSequenceName = "law_180L";               // 戰術左轉 180 度回頭
+            break;
+
+        case ACT_TURN_RIGHT:
+            pszSequenceName = "law_180R";               // 戰術右轉 180 度回頭
+            break;
+
+        case ACT_RANGE_ATTACK1:
+            pszSequenceName = "LAW_fire";               // 💥 M72 LAW 火箭筒點火點火射擊
+            break;
+
+        case ACT_RELOAD:
+            pszSequenceName = "law_reload";             // ⚙️ 戰術空倉拋筒重新裝填
+            break;
+
+        default:
+            return -1; // 非火箭筒兵專屬 Activity，返回 -1 放行，移交通用狀態機
+    }
+
+    // 將解碼出的精確字串送入 Studio 渲染器獲取 Sequence 索引
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivityMeleeBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 StudioMdl 模型指標更新網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    switch ( NewActivity )
+    {
+        case ACT_IDLE:
+            if ( m_idleAnim != 0 )
+            {
+                pszSequenceName = STRING( m_idleAnim );
+            }
+            else
+            {
+                // 依據激戰警戒態，動態分流站立警戒或放鬆低警備待命
+                pszSequenceName = ( m_MonsterState == MONSTERSTATE_COMBAT || heardCombat ) ? "machete_combatidle" : "machete_idle1";
+            }
+            break;
+
+        case ACT_WALK:
+            pszSequenceName = "machete_patrol_street"; // 🔒 馬刀街頭巡邏步態
+            break;
+
+        case ACT_RUN:
+            pszSequenceName = "machete_run";           // 🔒 馬刀發狂衝鋒步態
+            break;
+
+        case ACT_STRAFE_LEFT:
+            pszSequenceName = "machete_strafefire_L";
+            break;
+
+        case ACT_STRAFE_RIGHT:
+            pszSequenceName = "machete_strafefire_R";
+            break;
+
+        case ACT_TURN_LEFT:
+            pszSequenceName = "machete_180L";
+            break;
+
+        case ACT_TURN_RIGHT:
+            pszSequenceName = "machete_180R";
+            break;
+
+        case ACT_COWER:
+            pszSequenceName = "machete_cower";
+            break;
+
+        case ACT_SMALL_FLINCH:
+            pszSequenceName = "machete_smflinch";
+            break;
+
+        // =========================================================================
+        // ⚔️ 核心黑科技： 6 階隨機混合馬刀肉搏出刀刀法
+        // =========================================================================
+        case ACT_MELEE_ATTACK1:
+            {
+                int iMeleeRoll = RANDOM_LONG( 0, 5 );
+                switch ( iMeleeRoll )
+                {
+                    case 1:  pszSequenceName = "machete_melee2"; break;
+                    case 2:  pszSequenceName = "machete_melee3"; break;
+                    case 3:  pszSequenceName = "machete_melee4"; break;
+                    case 4:  pszSequenceName = "machete_melee5"; break;
+                    case 5:  pszSequenceName = "machete_melee6"; break;
+                    default: pszSequenceName = "machete_melee";  break;
+                }
+            }
+            break;
+
+        // =========================================================================
+        // 💀 部位定向擊殺死亡動畫覆寫
+        // =========================================================================
+        case ACT_DIESIMPLE:
+            pszSequenceName = ( m_deathAnim != 0 ) ? STRING( m_deathAnim ) : "machete_die-simple";
+            break;
+
+        case ACT_DIEBACKWARD:
+            pszSequenceName = ( m_deathAnim != 0 ) ? STRING( m_deathAnim ) : "machete_dieback1";
+            break;
+
+        case ACT_DIEFORWARD:
+        case ACT_DIE_BACKSHOT:
+            pszSequenceName = ( m_deathAnim != 0 ) ? STRING( m_deathAnim ) : "machete_dieforward";
+            break;
+
+        case ACT_DIEVIOLENT:
+        case ACT_DIE_HEADSHOT:
+            pszSequenceName = ( m_deathAnim != 0 ) ? STRING( m_deathAnim ) : "machete_headshot";
+            break;
+
+        case ACT_DIE_CHESTSHOT:
+        case ACT_DIE_GUTSHOT:
+            pszSequenceName = ( m_deathAnim != 0 ) ? STRING( m_deathAnim ) : "machete_diegutshot";
+            break;
+
+        // =========================================================================
+        // 🩺 部位定向中彈局部硬直系統 (Part-Specific Flinch)
+        // =========================================================================
+        case ACT_FLINCH_LEFTARM:
+            pszSequenceName = "machete_leftarmflinch";
+            break;
+
+        case ACT_FLINCH_RIGHTARM:
+            pszSequenceName = "machete_rightarmflinch";
+            break;
+
+        case ACT_FLINCH_LEFTLEG:
+            pszSequenceName = "machete_leftlegsmflinch";
+            break;
+
+        case ACT_FLINCH_RIGHTLEG:
+            pszSequenceName = "machete_rightlegsmflinch";
+            break;
+
+        default:
+            return -1; // 非馬刀兵專屬 Activity，放行移交外層通用狀態機
+    }
+
+    // 將解碼出的字串送入 Studio 渲染器獲取 Sequence 索引
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivityPistolBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 網路 Delta 特效對齊
+    const char *pszSequenceName = nullptr;
+
+    switch ( NewActivity )
+    {
+        case ACT_IDLE:
+            if ( m_idleAnim != 0 )
+            {
+                return CBaseAnimating::LookupSequence( STRING(m_idleAnim) );
+            }
+            if ( m_MonsterState != MONSTERSTATE_COMBAT && !heardCombat )
+            {
+                pszSequenceName = "pistol_idle1"; // 放鬆手槍待命
+            }
+            else if ( m_bStanding )
+            {
+                pszSequenceName = "pistol_combatidlle"; // 戰鬥直立手槍警戒
+            }
+            else
+            {
+                pszSequenceName = "pistol_crouching_wait"; // 🔒 戰鬥蹲下防線
+            }
+            break;
+
+        case ACT_CROUCH:
+            pszSequenceName = "pistol_crouching_wait";
+            break;
+
+        case ACT_WALK:
+            // 20% 殘血線或非交火狀態分流
+            if ( pev->health <= ( pev->max_health * 0.2f ) || m_MonsterState != MONSTERSTATE_COMBAT )
+            {
+                pszSequenceName = "pistol_walk";
+            }
+            else
+            {
+                pszSequenceName = "combat_walk_pistol"; // 戰術側身走路逼近
+            }
+            break;
+
+        case ACT_RUN:
+            if ( pev->health <= ( pev->max_health * 0.2f ) || m_MonsterState != MONSTERSTATE_COMBAT )
+            {
+                pszSequenceName = "pistol_run";
+            }
+            else
+            {
+                pszSequenceName = "combat_run_pistol"; // 戰術衝鋒持槍奔跑
+            }
+            break;
+
+        case ACT_STRAFE_LEFT:   pszSequenceName = "pistol_strafefire_L";   break;
+        case ACT_STRAFE_RIGHT:  pszSequenceName = "pistol_strafefire_R";  break;
+        case ACT_TURN_LEFT:     pszSequenceName = "pistol_180L";           break;
+        case ACT_TURN_RIGHT:    pszSequenceName = "pistol_180R";          break;
+        case ACT_COWER:         pszSequenceName = "pistol_cower";          break;
+        case ACT_SMALL_FLINCH:  pszSequenceName = "pistol_smflinch";       break;
+        case ACT_MELEE_ATTACK1: pszSequenceName = "pistol_melee";          break;
+
+        case ACT_RANGE_ATTACK1: // 🔥 核心輕武器開火路由器
+            if ( m_terroristBehavior == 6 ) // TMP/MAC10 微衝滲透者角色
+            {
+                pszSequenceName = !m_bStanding ? "crouching_tmp" : "shootcycle_tmp";
+            }
+            else // 常規格洛克/USP 手槍角色
+            {
+                pszSequenceName = !m_bStanding ? "pistol_crouching" : "pistol_standing";
+            }
+            break;
+
+        case ACT_RELOAD: // ⚙️ 換彈指針位移解密
+            pszSequenceName = !m_bStanding ? "crouch_pistol_reload" : "pistol_reload";
+            break;
+
+        // =========================================================================
+        // 💀 手槍兵種部位定向死亡序列
+        // =========================================================================
+        case ACT_DIESIMPLE:
+            return ( m_deathAnim != 0 ) ? CBaseAnimating::LookupSequence( STRING(m_deathAnim) ) : CBaseAnimating::LookupSequence( "pistol_die-simple" );
+        case ACT_DIEBACKWARD:
+            return ( m_deathAnim != 0 ) ? CBaseAnimating::LookupSequence( STRING(m_deathAnim) ) : CBaseAnimating::LookupSequence( "pistol_dieback1" );
+        case ACT_DIEFORWARD:
+        case ACT_DIE_BACKSHOT:
+            return ( m_deathAnim != 0 ) ? CBaseAnimating::LookupSequence( STRING(m_deathAnim) ) : CBaseAnimating::LookupSequence( "pistol_dieforward" );
+        case ACT_DIEVIOLENT:
+        case ACT_DIE_HEADSHOT:
+            return ( m_deathAnim != 0 ) ? CBaseAnimating::LookupSequence( STRING(m_deathAnim) ) : CBaseAnimating::LookupSequence( "pistol_headshot" );
+        case ACT_DIE_CHESTSHOT:
+        case ACT_DIE_GUTSHOT:
+            return ( m_deathAnim != 0 ) ? CBaseAnimating::LookupSequence( STRING(m_deathAnim) ) : CBaseAnimating::LookupSequence( "pistol_diegutshot" );
+
+        // =========================================================================
+        // 🩺 手槍兵種部位受擊抽搐硬直 (Part-Specific Flinch)
+        // =========================================================================
+        case ACT_FLINCH_LEFTARM:  pszSequenceName = "pistol_leftarmflinch";  break;
+        case ACT_FLINCH_RIGHTARM: pszSequenceName = "pistol_rightarmflinch"; break;
+        case ACT_FLINCH_LEFTLEG:  pszSequenceName = "pistol_leftlegsmflinch";   break;
+        case ACT_FLINCH_RIGHTLEG: pszSequenceName = "pistol_rightlegsmflinch";  break;
+
+        default:
+            return -1; // 非輕武器專屬動作，移交外層通用狀態機
+    }
+
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivityShotgunBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 獲取 Studio 模型指針同步網路 Delta
+    const char *pszSequenceName = nullptr;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：散彈槍近戰爆破與戰術壓彈換彈骨骼重定向
+    // =========================================================================
+    if ( NewActivity == ACT_RANGE_ATTACK1 ) // 散彈槍射擊幀引爆
+    {
+        // 依據姿態暫存器 m_bStanding 實時分流蹲下與站立火網序列
+        pszSequenceName = !m_bStanding ? "crouching_shotgun" : "standing_shotgun";
+    }
+    else if ( NewActivity == ACT_RELOAD ) // 戰術空倉壓彈填裝
+    {
+        // 🎰 完美解密指針加法：!m_bStanding 鎖定蹲換彈，站立則推移 7 位元組鎖定 "reload_shotgun"
+        pszSequenceName = !m_bStanding ? "crouch_reload_shotgun" : "reload_shotgun";
+    }
+    else
+    {
+        return -1; // 非散彈槍專屬 Activity，返回 -1 放行，移交通用狀態機
+    }
+
+    // 將解碼出的精確字串送入 Studio 渲染器獲取 Sequence 索引
+    if ( pszSequenceName != nullptr )
+    {
+        return CBaseAnimating::LookupSequence( pszSequenceName );
+    }
+
+    return -1;
+}
+
+int CTerrorist::SetActivitySniperBase( Activity NewActivity )
+{
+    // GET_MODEL_PTR( edict() ); // 動態 Studio 網格更新同步
+    const char *pszSequenceName = nullptr;
+
+    switch ( NewActivity )
+    {
+        // =========================================================================
+        // 🎯 1. 遠程狙擊開火雙階姿態分流 (Scout / AWP)
+        // =========================================================================
+        case ACT_RANGE_ATTACK1:
+            pszSequenceName = !m_bStanding ? "sniper_crouch-fire" : "sniper-fire";
+            if ( pszSequenceName != nullptr )
+            {
+                return CBaseAnimating::LookupSequence( pszSequenceName );
+            }
+            break;
+
+        // =========================================================================
+        // 📡 2. 雷射瞄準線架設啟動 (ACT_ARM)
+        // =========================================================================
+        case ACT_ARM:
+            // 實時解碼抬槍架線骨骼，並引爆 3D 光軌網路同步追蹤網
+            LaserGlowOn();
+            return CBaseAnimating::LookupSequence( "laser_on_stand" );
+
+        // =========================================================================
+        // 📡 3. 雷射瞄準線戰術拉熄 (ACT_DISARM)
+        // =========================================================================
+        case ACT_DISARM:
+            // 實時解碼垂槍动作，並連根拔起內存中的雷射實體防止懸空殘留
+            LaserGlowOff();
+            return CBaseAnimating::LookupSequence( "laser_off_stand" );
+
+        // =========================================================================
+        // 💀 4. 終極陣亡硬熔斷：全套擊殺死亡 Activity 下的三重暴力內存解體安全清洗
+        // =========================================================================
+        case ACT_DIESIMPLE:
+        case ACT_DIEBACKWARD:
+        case ACT_DIEFORWARD:
+        case ACT_DIEVIOLENT:
+        case ACT_DIE_HEADSHOT:
+        case ACT_DIE_CHESTSHOT:
+        case ACT_DIE_GUTSHOT:
+        case ACT_DIE_BACKSHOT:
+            // 🔒 雙重保險第一層：拉熄雷射線
+            LaserGlowOff();
+
+            // 🔒 雙重保險第二層：若內存殘留髒數據，再度暴力強制在世界中將物件連根拔起銷毀！
+            if ( m_pBeam != nullptr )
+            {
+                UTIL_Remove( m_pBeam );
+                m_pBeam = nullptr;
+            }
+            if ( m_pLaserGlow != nullptr )
+            {
+                UTIL_Remove( m_pLaserGlow );
+                m_pLaserGlow = nullptr;
+            }
+            return -1; // 放行回傳 -1，移交給外層通用死亡狀態機抽取 death02 或常規陣亡動作
+
+        default:
+            return -1; // 非狙擊手專屬 Activity，返回 -1 移交通用狀態機
+    }
+
+    return -1;
+}
+
+void CTerrorist::SetHead( int headType )
+{
+    // 🎰 發動 100 點隨機數輪盤，用於控制 50% 權重的美術外觀隨機化
+    int iRandRoll = RANDOM_LONG( 0, 99 );
+
+    // =========================================================================
+    // 🎭 依據地圖傳入的 headType 屬性，分流分配 StudioMdl 第 1 號頭部組群 (Bodygroup 1)
+    // =========================================================================
+    if ( headType != 0 )
+    {
+        if ( headType == 1 ) // 1 號屬性：精銳重裝特種匪徒分流
+        {
+            if ( iRandRoll < 51 ) // 0x33 = 51 (51% 機率)
+            {
+                CBaseAnimating::SetBodygroup( 1, 2 ); // 2號頭部：帶防彈盔/護目鏡外觀
+            }
+            else // (49% 機率)
+            {
+                CBaseAnimating::SetBodygroup( 1, 1 ); // 1號頭部：光頭/刀疤精英外觀
+            }
+        }
+        else if ( headType == 2 ) // 2 號屬性：強鎖潛伏全包圍面罩
+        {
+            CBaseAnimating::SetBodygroup( 1, 0 );     // 0號頭部：防毒面具/全包頭套外觀
+        }
+        return;
+    }
+
+    // 0 號屬性：常規大眾路人匪徒隨機流
+    if ( iRandRoll > 50 ) // 0x32 = 50 (50% 機率)
+    {
+        CBaseAnimating::SetBodygroup( 1, 3 );         // 3號頭部：紅頭巾/大鬍子悍匪外觀
+    }
+    else // (50% 機率)
+    {
+        CBaseAnimating::SetBodygroup( 1, 4 );         // 4號頭部：灰色毛帽/蒙面面紗外觀
+    }
+}
+
+void CTerrorist::SetupBehaviors(int behaviorType)
+{
+	// 📢 1. 跨越地址讀取伺服器全局 CVar 常數，判定當前關卡處於哪一個劇情章節階級 (maptier)
+	int iMapTier = (int)CVAR_GET_FLOAT("maptier");
+
+	// =========================================================================
+	// 🎰 2. 核心兵種戰術性格配分矩陣：100% 還原二進位計畫機率表加權回寫
+	// =========================================================================
+	if(behaviorType == 1)    // 🥷 兵種 1：XM1014 散彈槍破門兵
+	{
+		scheduleTable[18].percentChance = 0.0f;  // SCHED_RANGE_ATTACK1 (無手槍點射)
+		scheduleTable[17].percentChance = 0.9f;  // SCHED_TAKE_COVER (高掩體躲避)
+		scheduleTable[67].percentChance = 0.0f;  // SCHED_WAKE_SQUAD
+		scheduleTable[68].percentChance = 0.0f;  // SCHED_ALERT_FACE
+		scheduleTable[51].percentChance = 1.0f;  // SCHED_HIDE_AND_RELOAD (100% 跑位換彈)
+		scheduleTable[50].percentChance = 0.0f;  // SCHED_FLANK_ATTACK
+		scheduleTable[66].percentChance = 0.4f;  // SCHED_CHARGE_ENEMY (40% 散彈貼臉衝鋒)
+		scheduleTable[24].percentChance = 0.9f;  // SCHED_RANGE_ATTACK1 (常規散彈噴射)
+		scheduleTable[25].percentChance = 0.0f;
+		scheduleTable[22].percentChance = 0.3f;  // SCHED_SMALL_FLINCH
+		scheduleTable[62].percentChance = 0.0f;
+		scheduleTable[63].percentChance = 0.0f;
+		scheduleTable[64].percentChance = 0.2f;  // SCHED_CORNER_COVER_NODE
+		scheduleTable[28].percentChance = 0.1f;  // SCHED_CHASE_ENEMY_SOUND
+		scheduleTable[70].percentChance = 0.4f;  // SCHED_FIRING_PAUSE
+
+		m_fPreferedRange = 128.0f; // 🔒 散彈槍黃金交火近戰紅線：128 碼
+
+		// 🎨 章節外觀自適應：若處於前兩章節，加載防彈盔特種外觀
+		if(iMapTier < 3)
+		{
+			SetHead(1);
+			return;
+		}
+	}
+	else
+		if(behaviorType == 2)    // 🥷 兵種 2：常規主力 AK47 步槍突擊兵
+		{
+			scheduleTable[18].percentChance = 0.0f;
+			scheduleTable[17].percentChance = 0.9f;
+			scheduleTable[67].percentChance = 0.0f;
+			scheduleTable[68].percentChance = 0.0f;
+			scheduleTable[51].percentChance = 1.0f;
+			scheduleTable[50].percentChance = 0.8f;  // 🚀 80% 超高機率發動側翼戰術繞後包抄！
+			scheduleTable[66].percentChance = 0.05f; // 極低機率無腦衝鋒
+			scheduleTable[24].percentChance = 0.9f;
+			scheduleTable[25].percentChance = 0.0f;
+			scheduleTable[22].percentChance = 0.2f;
+			scheduleTable[62].percentChance = 0.0f;
+			scheduleTable[63].percentChance = 0.0f;
+			scheduleTable[64].percentChance = 0.3f;
+			scheduleTable[28].percentChance = 0.1f;
+			scheduleTable[70].percentChance = 0.6f;
+
+			m_fPreferedRange = 256.0f; // 🔒 突擊步槍黃金交火紅線：256 碼
+
+			if(iMapTier < 4)
+			{
+				SetHead(2);   // 中期地圖更換
+				return;
+			}
+			if(iMapTier == 4)
+			{
+				SetHead(1);
+				return;
+			}
+		}
+		else
+			if(behaviorType == 3)    // 🥷 兵種 3：M60 重機槍鏈彈暴君
+			{
+				scheduleTable[18].percentChance = 0.0f;
+				scheduleTable[17].percentChance = 0.9f;
+				scheduleTable[67].percentChance = 0.0f;
+				scheduleTable[68].percentChance = 0.0f;
+				scheduleTable[51].percentChance = 0.0f;  // 絕不躲藏換彈
+				scheduleTable[50].percentChance = 0.5f;
+				scheduleTable[66].percentChance = 0.0f;
+				scheduleTable[24].percentChance = 0.95f; // 🚀 95% 原地站穩狂暴傾瀉重火力火網！
+				scheduleTable[25].percentChance = 0.0f;
+				scheduleTable[22].percentChance = 0.0f;  // 具有霸體，免疫常規中彈抽搐硬直！
+				scheduleTable[62].percentChance = 0.0f;
+				scheduleTable[63].percentChance = 0.0f;
+				scheduleTable[64].percentChance = 0.1f;
+				scheduleTable[28].percentChance = 0.1f;
+				scheduleTable[70].percentChance = 0.1f;
+
+				if(iMapTier < 5)
+				{
+					SetHead(2);
+					return;
+				}
+				if(iMapTier == 5)
+				{
+					SetHead(1);
+					return;
+				}
+			}
+			else
+				if(behaviorType == 6)    // 🥷 兵種 6：TMP/MAC10 微衝高機動滲透者
+				{
+					scheduleTable[18].percentChance = 0.0f;
+					scheduleTable[17].percentChance = 0.9f;
+					scheduleTable[67].percentChance = 0.0f;
+					scheduleTable[68].percentChance = 0.0f;
+					scheduleTable[51].percentChance = 1.0f;
+					scheduleTable[50].percentChance = 0.8f;
+					scheduleTable[66].percentChance = 0.1f;
+					scheduleTable[24].percentChance = 0.9f;
+					scheduleTable[25].percentChance = 0.0f;
+					scheduleTable[22].percentChance = 0.1f;
+					scheduleTable[62].percentChance = 0.0f;
+					scheduleTable[63].percentChance = 0.0f;
+					scheduleTable[64].percentChance = 0.3f;
+					scheduleTable[28].percentChance = 0.1f;
+					scheduleTable[70].percentChance = 0.1f;
+
+					m_fPreferedRange = 192.0f; // 微衝黃金紅線：192 碼
+				}
+				else
+					if(behaviorType == 0)    // 🥷 兵種 0：格洛克/USP 手槍常規步兵
+					{
+						scheduleTable[18].percentChance = 0.0f;
+						scheduleTable[17].percentChance = 0.8f;
+						scheduleTable[67].percentChance = 0.0f;
+						scheduleTable[68].percentChance = 0.0f;
+						scheduleTable[51].percentChance = 1.0f;
+						scheduleTable[50].percentChance = 0.9f;
+						scheduleTable[66].percentChance = 0.1f;
+						scheduleTable[24].percentChance = 1.0f;
+						scheduleTable[25].percentChance = 0.0f;
+						scheduleTable[22].percentChance = 0.2f;
+						scheduleTable[62].percentChance = 0.0f;
+						scheduleTable[63].percentChance = 0.0f;
+						scheduleTable[64].percentChance = 0.5f;
+						scheduleTable[28].percentChance = 0.1f;
+						scheduleTable[70].percentChance = 0.4f;
+
+						m_fPreferedRange = 192.0f;
+					}
+					else
+						if(behaviorType == 7)    // 🥷 兵種 7：高爆雷/閃光戰術擲彈兵
+						{
+							scheduleTable[18].percentChance = 0.1f;
+							scheduleTable[17].percentChance = 0.8f;
+							scheduleTable[67].percentChance = 0.1f;
+							scheduleTable[68].percentChance = 0.2f;
+							scheduleTable[51].percentChance = 1.0f;
+							scheduleTable[50].percentChance = 0.0f;
+							scheduleTable[66].percentChance = 0.0f;
+							scheduleTable[24].percentChance = 0.1f;
+							scheduleTable[25].percentChance = 1.0f;  // 🚀 100% 暴擊發動過頂手榴彈拋投打擊！
+							scheduleTable[22].percentChance = 0.0f;
+							scheduleTable[62].percentChance = 0.0f;
+							scheduleTable[63].percentChance = 0.0f;
+							scheduleTable[64].percentChance = 0.0f;
+							scheduleTable[28].percentChance = 0.2f;
+							scheduleTable[70].percentChance = 0.5f;
+						}
+						else
+							if(behaviorType == 5)    // 🥷 兵種 5：M72 LAW 重型火箭筒反裝甲兵
+							{
+								scheduleTable[18].percentChance = 0.1f;
+								scheduleTable[17].percentChance = 0.9f;
+								scheduleTable[67].percentChance = 0.0f;
+								scheduleTable[68].percentChance = 0.0f;
+								scheduleTable[51].percentChance = 1.0f;
+								scheduleTable[50].percentChance = 0.9f;
+								scheduleTable[66].percentChance = 0.0f;
+								scheduleTable[24].percentChance = 1.0f;  // 🚀 100% 發射觸碰即炸火箭彈大火砲！
+								scheduleTable[25].percentChance = 0.0f;
+								scheduleTable[22].percentChance = 0.0f;
+								scheduleTable[62].percentChance = 0.0f;
+								scheduleTable[63].percentChance = 0.0f;
+								scheduleTable[64].percentChance = 0.0f;
+								scheduleTable[28].percentChance = 0.1f;
+							}
+							else
+								if(behaviorType == 4)    // 🥷 兵種 4：AWP / Scout 雷射紅外線狙擊手
+								{
+									scheduleTable[18].percentChance = 0.0f;
+									scheduleTable[17].percentChance = 1.0f;
+									scheduleTable[67].percentChance = 0.1f;
+									scheduleTable[68].percentChance = 0.2f;
+									scheduleTable[51].percentChance = 0.0f;
+									scheduleTable[50].percentChance = 0.5f;
+									scheduleTable[66].percentChance = 0.0f;
+									scheduleTable[24].percentChance = 0.0f;
+									scheduleTable[25].percentChance = 0.0f;
+									scheduleTable[22].percentChance = 0.2f;
+									scheduleTable[62].percentChance = 1.0f;  // 🚀 100% 原地死守架設 4096碼 狙擊線！
+									scheduleTable[63].percentChance = 0.5f;  // 🚀 50% 機率紅外線光軌實時眼神鎖定玩家！
+									scheduleTable[64].percentChance = 0.0f;
+								}
+								else
+									if(behaviorType == 9)    // 🥷 兵種 9：神風特攻隊人肉炸彈自殺兵
+									{
+										// 🔒 絕不閃避、絕不拉栓換彈、絕不常規開槍射擊
+										scheduleTable[18].percentChance = 0.0f;
+										scheduleTable[17].percentChance = 0.0f;
+										scheduleTable[67].percentChance = 0.0f;
+										scheduleTable[68].percentChance = 0.0f;
+										scheduleTable[51].percentChance = 0.0f;
+										scheduleTable[50].percentChance = 0.1f;
+										scheduleTable[66].percentChance = 1.0f;  // 💥 100% 機率：發瘋平舉雙手直線全速衝鋒！
+										scheduleTable[24].percentChance = 0.0f;
+										scheduleTable[25].percentChance = 0.0f;
+										scheduleTable[22].percentChance = 0.0f;
+										scheduleTable[62].percentChance = 0.0f;
+										scheduleTable[63].percentChance = 0.0f;
+										scheduleTable[64].percentChance = 0.0f;
+										scheduleTable[61].percentChance = 1.0f;  // 💥 100% 機率：踏入64碼死線觸發原地引爆尖叫大爆炸！
+
+										scheduleTable[28].percentChance = 0.0f;
+										scheduleTable[70].percentChance = 0.0f;
+									}
+									else
+										if(behaviorType == 8)    // 🥷 兵種 8：近戰開山馬刀死士
+										{
+											scheduleTable[18].percentChance = 0.0f;
+											scheduleTable[17].percentChance = 1.0f;
+											scheduleTable[67].percentChance = 0.0f;
+											scheduleTable[68].percentChance = 0.0f;
+											scheduleTable[51].percentChance = 0.0f;
+											scheduleTable[50].percentChance = 0.0f;
+											scheduleTable[66].percentChance = 0.8f;  // 🚀 80% 機率：拔出馬刀進行 128碼 體積凸殼砍殺衝鋒！
+											scheduleTable[24].percentChance = 0.0f;
+											scheduleTable[25].percentChance = 0.0f;
+											scheduleTable[22].percentChance = 1.0f;  // 100% 承受中彈受創抽搐硬直
+											scheduleTable[62].percentChance = 0.0f;
+											scheduleTable[63].percentChance = 0.0f;
+											scheduleTable[64].percentChance = 0.0f;
+											scheduleTable[28].percentChance = 0.3f;
+											scheduleTable[70].percentChance = 0.0f;
+										}
+										else
+										{
+											return; // 未指派角色，格式化退出
+										}
+
+	// =========================================================================
+	// 🎨 3. 終極尾端：大後期或地獄難度高級章節 (Tier 4~5)，100% 鎖死生化防毒面具死士外貌
+	// =========================================================================
+	if(iMapTier < 3)
+	{
+		SetHead(2);   // 降級保險
+		return;
+	}
+	if(iMapTier == 3)
+	{
+		// 進入中期沙漠/軍火工廠章節，自動調用 SetHead(0) 隨機切換紅頭巾/大鬍子悍匪長相！
+		SetHead(0);
+		return;
+	}
+	// 大後期關卡 (Tier 4~5)，無條件強鎖黑色生化防毒面具/巴拉克拉法帽死士外觀
+	SetHead(2);
+}
+
+void CTerrorist::SetupLaserGlow( void )
+{
+    // =========================================================================
+    // 🔴 1. 3D 紅外線雷射射線實體動態安全構造 (CBeam)
+    // =========================================================================
+    if ( m_pBeam == nullptr )
+    {
+        // 動態生成 3 碼寬度的紅色雷射束實體
+        CBeam *pBeam = CBeam::BeamCreate( "sprites/laserbeam.spr", 3 );
+        m_pBeam = pBeam;
+
+        if ( m_pBeam != nullptr && m_pBeam->pev != nullptr )
+        {
+            entvars_t *pBeamPev = m_pBeam->pev;
+
+            pBeamPev->rendermode |= 0x80; // 注入 kRenderFxNoDissruption 標記
+            pBeamPev->spawnflags |= 0x8000; // 🔒 注入 SF_BEAM_TEMPORARY 網路 Delta 優化標記
+
+            // 級聯配置圖形學加算渲染參數
+            pBeamPev->rendercolor.x = 255.0f; // R: 純紅
+            pBeamPev->rendercolor.y = 0.0f;   // G
+            pBeamPev->rendercolor.z = 0.0f;   // B
+            pBeamPev->renderamt     = 0.0f;   // 初始隱形
+            pBeamPev->rendermode    = kRenderTransAdd; // 3: 加算透明混合 (自發光)
+            pBeamPev->renderfx      = kRenderFxDistort;  // 14 = 0x0E: 模擬熱浪扭曲抖動特效
+
+            m_laserBrightness = 0.0f;
+        }
+    }
+
+    // =========================================================================
+    // 💥 2. 槍口紅色雷射精靈光暈 (Laser Glow Sprite) 隨體骨骼依附構造 (CSprite)
+    // =========================================================================
+    if ( m_pLaserGlow == nullptr )
+    {
+        // 在自身原點構造精靈 flare3
+        CSprite *pSprite = CSprite::SpriteCreate( "sprites/flare3.spr", pev->origin, FALSE );
+        m_pLaserGlow = pSprite;
+
+        if ( m_pLaserGlow != nullptr && m_pLaserGlow->pev != nullptr )
+        {
+            entvars_t *pGlowPev = m_pLaserGlow->pev;
+
+            pGlowPev->rendermode    = kRenderTransAdd; // 3: 加算自發光
+            pGlowPev->rendercolor.x = 255.0f; // 純紅
+            pGlowPev->rendercolor.y = 0.0f;
+            pGlowPev->rendercolor.z = 0.0f;
+            pGlowPev->renderamt     = 0.0f;   // 初始隱形
+            pGlowPev->renderfx      = kRenderFxDistort;  // 14: 抖動
+
+            // 🚀 核心重砲：發動隨體移動物理骨骼依附 (MOVETYPE_FOLLOW)，將光暈死死焊接在槍口！
+            if ( edict() != nullptr )
+            {
+                pGlowPev->skin     = ENTINDEX( edict() );       // 依附目標的世界內存索引
+                pGlowPev->body     = 2;                         // 🔒 2號槍口掛載點 (Attachment 2)
+                pGlowPev->aiment   = edict();                   // 實體握手依附
+                pGlowPev->movetype = MOVETYPE_FOLLOW;           // 12 = 0x0C: 隨體骨骼動畫插值隨動
+            }
+
+            pGlowPev->renderamt = 0.0f;
+            m_glowBrightness = 0.0f;
+        }
+    }
+}
+
+void CTerrorist::SetupWeapons( void )
+{
+    // 初始化默認彈匣與開局殘彈基準線 (預設為 MP5 規格的 36 發)
+    m_cClipSize   = 36; // 0x24
+    m_cAmmoLoaded = 36;
+
+    int iBehavior = m_terroristBehavior;
+
+    // =========================================================================
+    // 🎰 優先級一：11 大自定義剧情兵種軍火庫與 3D 子模型掛載矩陣
+    // =========================================================================
+    if ( iBehavior != -1 )
+    {
+        switch ( iBehavior )
+        {
+            case 0: // 🥷 0 號手槍兵 (Glock / USP)
+                m_cClipSize = 16; // 0x10
+                CBaseAnimating::SetBodygroup( 2, 5 ); // 模型切換為手槍組件
+                break;
+
+            case 1: // 🥷 1 號散彈破門兵 (XM1014)
+                pev->weapons = bits_WEAPON_SHOTGUN; // 8
+                m_cClipSize  = 8;
+                CBaseAnimating::SetBodygroup( 2, 1 ); // 模型切換為散彈槍組件
+                break;
+
+            case 2: // 🥷 2 號主力突擊步槍兵 (AK47)
+                pev->weapons = bits_WEAPON_RIFLE;   // 1
+                m_cClipSize  = 30; // 0x1E
+                CBaseAnimating::SetBodygroup( 2, 4 ); // 模型切換為突擊步槍組件
+                break;
+
+            case 3: // 🥷 3 號 M60 鏈彈輕機槍暴君
+                CBaseAnimating::SetBodygroup( 2, 7 ); // 模型切換為重機槍組件
+                break;
+
+            case 4: // 🥷 4 號 Scout / AWP 雷射狙擊手
+                pev->weapons = bits_WEAPON_SNIPER;  // 0x10 (16)
+                CBaseAnimating::SetBodygroup( 2, 3 ); // 模型切換為狙擊槍組件
+                break;
+
+            case 5: // 🥷 5 號 M72 LAW 重型火箭筒反裝甲兵
+                m_cClipSize = 1;
+                CBaseAnimating::SetBodygroup( 2, 2 ); // 模型切換為火箭筒組件
+                break;
+
+            case 6: // 🥷 6 號 MAC10 / TMP 微衝潛伏滲透者
+                m_cClipSize  = 45; // 0x2D
+                pev->weapons = bits_WEAPON_RIFLE; // 復用高射速步槍邏輯槽
+                CBaseAnimating::SetBodygroup( 2, 8 ); // 模型切換為微型衝鋒槍組件
+                break;
+
+            case 7: // 🥷 7 號戰術高爆雷/閃光彈擲彈兵
+                m_cClipSize  = 16;
+                pev->weapons = bits_WEAPON_GRENADE; // 2
+                CBaseAnimating::SetBodygroup( 2, 5 ); // 擲彈兵模型自備手槍防身
+                break;
+
+            case 8: // 🥷 8 號近戰開山馬刀死士
+                CBaseAnimating::SetBodygroup( 2, 6 ); // 模型切換為叢林馬刀組件
+                break;
+
+            case 9: // 🥷 9 號💥 神風特攻隊人肉炸彈自殺兵
+                CBaseAnimating::SetBodygroup( 2, 9 ); // 手持組件切換為遙控引爆器
+                CBaseAnimating::SetBodygroup( 3, 1 ); // 🔒 軀幹組件 3 強制焊上 3D C4炸藥包貼圖！
+                break;
+
+            default:
+                CBaseAnimating::SetBodygroup( 2, 0 ); // 預設空手
+                break;
+        }
+
+        // 數據同步：開局殘彈與剛裝填完畢的兵種彈匣容量完美對齊
+        m_cAmmoLoaded = m_cClipSize;
+        return;
+    }
+
+    // =========================================================================
+    // 📡 優先級二：降級老地圖相容分流 (依據舊版 pev->weapons 位元遮罩反向逆推)
+    // =========================================================================
+    unsigned int uWeaponsMask = pev->weapons;
+    if ( uWeaponsMask == 0 )
+    {
+        pev->weapons = 3; // 預設補給
+        CBaseAnimating::SetBodygroup( 2, 1 );
+    }
+    else
+    {
+        if ( uWeaponsMask & 1 ) // 步槍位元
+        {
+            CBaseAnimating::SetBodygroup( 2, 0 );
+            uWeaponsMask = pev->weapons;
+        }
+        if ( uWeaponsMask & 8 ) // 散彈位元
+        {
+            CBaseAnimating::SetBodygroup( 2, 1 );
+            m_cClipSize  = 8;
+            uWeaponsMask = pev->weapons;
+        }
+        if ( uWeaponsMask & 0x20 ) // 火箭筒/重裝位元
+        {
+            CBaseAnimating::SetBodygroup( 2, 2 );
+            uWeaponsMask = pev->weapons;
+        }
+        if ( uWeaponsMask & 0x10 ) // 狙擊位元
+        {
+            CBaseAnimating::SetBodygroup( 2, 3 );
+            uWeaponsMask = pev->weapons;
+        }
+        
+        if ( uWeaponsMask & 0x40 ) // 💥 舊版自爆兵位元遮罩 (64)
+        {
+            CBaseAnimating::SetBodygroup( 2, 9 );
+            m_cClipSize = 0; // 自爆兵無子彈
+        }
+        
+        m_cAmmoLoaded = m_cClipSize;
+    }
+}
+
+void CTerrorist::SetYawSpeed( void )
+{
+    float flIdealYawSpeed = 90.0f; // 預設幾何轉身安全角速度基準線 (90度/秒)
+    int iActivityIndex = m_Activity;
+
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：51 階通用 Activity 動作靜態角速度陣列查表矩陣
+    // =========================================================================
+    if ( ( iActivityIndex - ACT_IDLE ) < 51 ) // 0x33 = 51
+    {
+        // 🚀 鏡像重合二進位 DAT_00199e9f 數據表之查表分流配准法則
+        switch ( m_Activity )
+        {
+            case ACT_IDLE:
+                flIdealYawSpeed = 90.0f;  // 原地防禦/閒置待命：90度/秒
+                break;
+
+            case ACT_WALK:
+            case ACT_WALK_HURT:
+                flIdealYawSpeed = 120.0f; // 戰術側身/20%殘血瘸腿走：120度/秒
+                break;
+
+            case ACT_RUN:
+            case ACT_RUN_HURT:
+                flIdealYawSpeed = 180.0f; // 🔒 衝鋒期/驚慌奔跑：拉高至 180度/秒，鎖死玩家軌跡
+                break;
+
+            case ACT_TURN_LEFT:
+            case ACT_TURN_RIGHT:
+                flIdealYawSpeed = 240.0f; // 🔒 180度大扭頭迎敵特權：拉高至極限 240度/秒 暴力轉向！
+                break;
+
+            case ACT_RANGE_ATTACK1:
+            case ACT_RANGE_ATTACK2:
+            case ACT_MELEE_ATTACK1:
+                flIdealYawSpeed = 150.0f; // 密火網開火/投擲/出刀期：150度/秒
+                break;
+
+            case ACT_SMALL_FLINCH:
+            case ACT_FLINCH_LEFTARM:
+            case ACT_FLINCH_RIGHTARM:
+            case ACT_FLINCH_LEFTLEG:
+            case ACT_FLINCH_RIGHTLEG:
+                flIdealYawSpeed = 60.0f;  // 中彈抽搐硬直硬熔斷期：壓低至 60度/秒 沒收轉向力
+                break;
+
+            default:
+                flIdealYawSpeed = 90.0f;  // 其餘日常動作降級至基準面
+                break;
+        }
+    }
+
+    // 將幾何折算出的最終精確角速度灌入實體變數，交付給引擎物理核心渲染
+    pev->yaw_speed = flIdealYawSpeed;
+}
+
+void CTerrorist::ShootAssaultRifle( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 8; // 預設 Normal 難度 8 點 AK47 基礎突擊傷害
+
+    // 🎰 100% 還原難度自適應突擊火力殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 5;  // Easy
+        else if ( g_iSkillLevel == 2 ) nBulletDamage = 12; // Hard / Expert (0x0C)
+        else if ( g_iSkillLevel == 3 ) nBulletDamage = 12;
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 🎰 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        // 幾何防砸窗保險面：若模長為零，強制注入 0.08716 的標準突擊步槍盲射散佈常數
+        vecFinalSpread = Vector( 0.08716f, 0.08716f, 0.08716f );
+    }
+    else
+    {
+        // 正常加載動態散佈暫存器
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    // 🚀 火網引爆：向 3D 世界發射一發射程高達 2048 碼的射線子彈，打擊難度自適應傷害 (BULLET_PLAYER_762MM)
+    FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_762MM, nBulletDamage );
+
+    // 點亮槍口火光網路 Delta 廣播旗標
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 沒收一發殘彈
+    m_cAmmoLoaded--;
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「步槍步槍黃銅彈殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成完美的拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 完美還原槍身右側拋殼窗的幾何偏置：將發射點向前方外推 8 碼，防範內置穿模 Bug
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 8.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚高速翻滾的黃銅步槍彈殼
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL ); // 1 = 步槍彈殼
+
+    // =========================================================================
+    // 🔊 雙軌動態音訊路由器：50% 機率交叉播放 ak47-1 / ak47-2 頂級降噪
+    // =========================================================================
+    const char *pszSampleSound = ( RANDOM_LONG(0, 1) == 0 ) ? "weapons/ak47-2.wav" : "weapons/ak47-1.wav";
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, pszSampleSound, 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootLAW( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的原始 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    // 🔒 填裝 5.0 秒開火大冷卻，防止火箭彈無限連發鬼抽
+    lawDelayTime = gpGlobals->time + 5.0f;
+
+    // 將朝向向量重折算為 3D 角度，並提取右、上兩組垂直正交世界方向量
+    Vector vecShootAngles;
+    UTIL_VecToAngles( vecShootDir, vecShootAngles );
+    vecShootAngles.x = -vecShootAngles.x; // FPU 幾何軸反轉對齊
+    UTIL_MakeVectors( vecShootAngles );
+
+    // 🎰 100% 還原二進位 4 記隨機數與雙向正交向量的 3D 火箭彈彈道螺旋漂移公式
+    float flRand1 = RANDOM_FLOAT( -0.5f, 0.5f );
+    float flRand2 = RANDOM_FLOAT( -0.5f, 0.5f );
+    float flRand3 = RANDOM_FLOAT( -0.5f, 0.5f );
+    float flRand4 = RANDOM_FLOAT( -0.5f, 0.5f );
+
+    // 實時將固有精度武器散佈 (m_weaponAccuracy) 注入螺旋漂移面
+    float flDriftUp    = ( flRand3 + flRand4 ) * m_weaponAccuracy.y;
+    float flDriftRight = ( flRand1 + flRand2 ) * m_weaponAccuracy.x;
+
+    // 合成最終受環境與難度波及後的全新 3D 實時飛行軌跡向量
+    Vector vecFinalDir = vecShootDir + ( gpGlobals->v_up * flDriftUp ) + ( gpGlobals->v_right * flDriftRight );
+
+    Vector vecFinalAngles;
+    UTIL_VecToAngles( vecFinalDir, vecFinalAngles );
+    vecFinalAngles.x = -vecFinalAngles.x; // 重回正偏置
+
+    // =========================================================================
+    // 🚀 火箭彈實體點火生成：向世界工廠動態 Spawn 出一枚真實的 3D 火箭彈實體
+    // =========================================================================
+    // 依據 DWARF 符號表，CLawsRocket::CreateLawsRocket 是其原生構造器接口
+    CLawsRocket::CreateLawsRocket( vecShootOrigin, vecFinalAngles, this );
+
+    // =========================================================================
+    // 🔊 網路 Delta 事件引爆：全服同步發射 events/laws.sc 轟鳴與尾煙粒子特效封包
+    // =========================================================================
+    unsigned short usLawsEvent = PRECACHE_EVENT( 1, "events/laws.sc" );
+    PLAYBACK_EVENT_FULL( 0, edict(), usLawsEvent, 0.0f, g_vecZero, g_vecZero, 0.0f, 0.0f, 0, 0, 0, 0 );
+
+    // 骨骼插值連動：扭頭鎖死發射夾角，強鎖上半身持重火砲骨骼混合
+    SetBlending( 0, vecShootAngles.x );
+
+    // 沒收一發重型火箭彈殘彈
+    m_cAmmoLoaded--;
+}
+
+void CTerrorist::ShootMachineGun( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 11; // 預設 Normal 難度 11 點 M60 基礎重機槍傷害
+
+    // 🎰 100% 還原難度自適應重火力殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 8;  // Easy
+        else if ( g_iSkillLevel == 2 ) nBulletDamage = 15; // Hard / Expert (0x0F)
+        else if ( g_iSkillLevel == 3 ) nBulletDamage = 15;
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 🎰 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        // 幾何防砸窗保險面：若模長為零，強制注入 0.08716 的標準重機槍盲射散佈常數
+        vecFinalSpread = Vector( 0.08716f, 0.08716f, 0.08716f );
+    }
+    else
+    {
+        // 正常加載動態散佈暫存器
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    // 🚀 火網引爆：向 3D 世界發射一發射程高達 2048 碼的射線子彈，打擊難度自適應傷害 (BULLET_PLAYER_762MM)
+    FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_762MM, nBulletDamage );
+
+    // 點亮槍口火光網路 Delta 廣播旗標
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 💡 實錘大廠重裝兵種特權：此處不扣減殘彈，實現無限鏈彈無限壓制火網！
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「機槍黃銅彈殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成完美的拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 完美還原槍身右側拋殼窗的幾何偏置：將發射點向前方外推 8 碼，防範內置穿模 Bug
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 8.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚高速翻滾的黃銅步槍彈殼
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL ); // 1 = 步槍/重機槍彈殼
+
+    // =========================================================================
+    // 🔊 雙軌動態音訊路由器：50% 機率交叉播放 m60-1 / m60-2 頂級降噪
+    // =========================================================================
+    const char *pszSampleSound = ( RANDOM_LONG(0, 1) == 0 ) ? "weapons/m60-2.wav" : "weapons/m60-1.wav";
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, pszSampleSound, 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootMP5( void )
+{
+    if ( m_hEnemy == nullptr ) return;
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 6;
+
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 3;
+        else if ( g_iSkillLevel >= 2 ) nBulletDamage = 10;
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        vecFinalSpread = Vector( 0.08716f, 0.08716f, 0.08716f );
+    }
+    else
+    {
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_9MM, nBulletDamage );
+
+    pev->effects |= EF_MUZZLEFLASH;
+    m_cAmmoLoaded--;
+
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 8.0f );
+
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL );
+
+    const char *pszSampleSound = ( RANDOM_LONG(0, 1) == 0 ) ? "weapons/mp5-2.wav" : "weapons/mp5-1.wav";
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, pszSampleSound, 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootPistol( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 5; // 預設 Normal 難度 5 點手槍基礎傷害
+
+    // 🎰 100% 還原難度自適應手槍殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 2; // Easy
+        else if ( g_iSkillLevel >= 2 ) nBulletDamage = 5; // Hard / Expert (5點)
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        vecFinalSpread = Vector( 0.08716f, 0.08716f, 0.08716f ); // 盲射基準面
+    }
+    else
+    {
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    const char *pszSampleSound = nullptr;
+
+    // =========================================================================
+    // 🎰 戰術心理突襲：15% 隨機機率爆發 CS 經典「格洛克戰術三連發」火網
+    // =========================================================================
+    if ( RANDOM_LONG(0, 99) < 15 && m_cAmmoLoaded >= 3 )
+    {
+        // 🚀 一瞬間射出 3 發手槍子彈，打擊難度自適應傷害 (BULLET_PLAYER_9MM)
+        FireBullets( edict(), 3, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_9MM, nBulletDamage );
+        
+        m_cAmmoLoaded -= 3; // 一鍵格式化清扣 3 發殘彈
+        pszSampleSound = "weapons/glock18-1.wav"; // 三連發專屬高頻率破空聲
+    }
+    else // 85% 機率維持常規單發點射
+    {
+        // 向世界發射一發子彈
+        FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_9MM, nBulletDamage );
+        
+        m_cAmmoLoaded--; // 扣除一發
+        pszSampleSound = "weapons/glock18-2.wav"; // 標準單發格洛克槍聲
+    }
+
+    // 點亮槍口火光網路 Delta 廣播
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「手槍九毫米黃銅彈殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 100% 還原 13.0f 碼前推線幾何偏置之真相！精確對齊平舉伸直右手的格洛克排殼窗，嚴防穿模 Bug！
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 13.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚 9mm 手槍小彈殼
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL ); 
+
+    // 發射音軌
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, pszSampleSound, 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootShotgun( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 10; // 預設 Normal 難度 10 點單顆鋼珠傷害
+
+    // 🎰 100% 還原難度自適應散彈破門殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 5;  // Easy
+        else if ( g_iSkillLevel >= 2 ) nBulletDamage = 15; // Hard / Expert (0x0F)
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        // 幾何防砸窗保險面：100% 還原 0.13053 常數，精確對齊 VECTOR_CONE_15DEGREES 散彈槍標準散射錐
+        vecFinalSpread = Vector( 0.13053f, 0.13053f, 0.13053f );
+    }
+    else
+    {
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    // 🚀 火網爆破：單發並行點火射出 5 顆獨立散彈鋼珠 (BULLET_PLAYER_BUCKSHOT)，最大極限射程 2048 碼
+    FireBullets( edict(), 5, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_BUCKSHOT, nBulletDamage );
+
+    // 點亮槍口火光網路 Delta 廣播
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 沒收一發散彈殘彈
+    m_cAmmoLoaded--;
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「紅色 12 號散彈塑料殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 完美還原槍身右側拋殼窗的幾何偏置：將發射點向前方外推 8 碼，防範內置穿模 Bug
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 8.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚鮮紅色的塑料散彈大彈殼 ( 2 = TE_BOUNCE_SHOTSHELL )
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iShotgunShell, 2 ); 
+
+    // 發射音軌：原廠經典大威力單發散彈轟鳴
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, "weapons/sbarrel1.wav", 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootSMG( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 4; // 預設 Normal 難度 4 點微衝基礎傷害
+
+    // 🎰 100% 還原難度自適應微衝滲透火力殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 2; // Easy
+        else if ( g_iSkillLevel >= 2 ) nBulletDamage = 6; // Hard / Expert (6點)
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        // 幾何防砸窗保險面：若模長為零，強制注入 0.08716 的標準微衝盲射散佈常數
+        vecFinalSpread = Vector( 0.08716f, 0.08716f, 0.08716f );
+    }
+    else
+    {
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    // 🚀 火網引爆：向 3D 世界發射一發射程高達 2048 碼的射線子彈 (BULLET_PLAYER_9MM)
+    FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_9MM, nBulletDamage );
+
+    // 點亮槍口火光網路 Delta 廣播旗標
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 沒收一發殘彈
+    m_cAmmoLoaded--;
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「微衝九毫米黃銅彈殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 100% 還原 10.0f 碼前推線幾何偏置之真相！精確對齊縮在胸前戰術前伸的微衝排殼窗，嚴防穿模 Bug！
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 10.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚手槍同款 9mm 黃銅小彈殼 (1 = TE_BOUNCE_SHELL)
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL ); 
+
+    // =========================================================================
+    // 🔊 雙軌動態音訊路由器：50% 機率交叉播放 tmp-1 / tmp-2 頂級降噪消音微衝音軌
+    // =========================================================================
+    const char *pszSampleSound = ( RANDOM_LONG(0, 1) == 0 ) ? "weapons/tmp-2.wav" : "weapons/tmp-1.wav";
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, pszSampleSound, 0.75f, ATTN_NORM, 0, PITCH_NORM );
+}
+
+void CTerrorist::ShootSniperRifle( void )
+{
+    // 📢 確保目前大腦鎖定的死敵目標有效 (m_hEnemy != nullptr)
+    if ( m_hEnemy == nullptr )
+    {
+        return;
+    }
+
+    CBaseEntity *pEnemy = m_hEnemy;
+    int nBulletDamage = 18; // 預設 Normal 難度 18 點 AWP 麥格農基礎傷害
+
+    // 🎰 100% 還原難度自適應重裝狙擊殺傷力折算矩陣
+    if ( pEnemy->IsPlayer() )
+    {
+        if ( g_iSkillLevel == 0 )      nBulletDamage = 25; // Easy
+        else if ( g_iSkillLevel >= 2 ) nBulletDamage = 45; // Hard / Expert (0x2D)
+    }
+
+    Vector vecShootOrigin, vecShootDir;
+    // 跨越虛擬表 131 號方法獲取槍口世界原點，並解算指向死敵的 3D 幾何向量
+    GetGunPosition( vecShootOrigin );
+    ShootAtEnemy( vecShootDir, vecShootOrigin );
+
+    UTIL_MakeVectors( pev->angles );
+
+    // 解算當前槍械的 3D 空間散佈模長
+    float flSpreadLen = m_weaponAccuracy.Length();
+    Vector vecFinalSpread;
+
+    if ( flSpreadLen <= 0.0f )
+    {
+        // 幾何防砸窗保險面：100% 還原 0.04362 散佈常數，精確對齊狙擊槍高精度彈道
+        vecFinalSpread = Vector( 0.04362f, 0.04362f, 0.04362f );
+    }
+    else
+    {
+        vecFinalSpread = m_weaponAccuracy;
+    }
+
+    // 🚀 火網引爆：向 3D 世界發射一發射程高達 2048 碼的高精度重型射線子彈 (BULLET_PLAYER_338MAG)
+    FireBullets( edict(), 1, vecShootOrigin, vecShootDir, vecFinalSpread, 2048.0f, BULLET_PLAYER_338MAG, nBulletDamage );
+
+    // 點亮槍口火光網路 Delta 廣播旗標
+    pev->effects |= EF_MUZZLEFLASH; // pev->effects |= 2
+
+    // 💡 實錘大廠狙擊兵種特權：此處不扣減殘彈，依靠拉栓動作完成分時補給
+
+    // 🚀 骨骼插值連動：更新眼神與骨骼朝向夾角，強鎖上半身射擊姿態混合
+    Vector vecAngleDir;
+    UTIL_VecToAngles( vecShootDir, vecAngleDir );
+    SetBlending( 0, vecAngleDir.x );
+
+    // =========================================================================
+    // 🚀 🎰 300度半空翻滾「狙擊步槍黃銅彈殼 3D 動態拋殼矩陣」
+    // =========================================================================
+    float flRandRight   = RANDOM_FLOAT( -40.0f, 40.0f );
+    float flRandForward = RANDOM_FLOAT( 75.0f,  200.0f );
+    float flRandUp      = RANDOM_FLOAT( 40.0f,  90.0f );
+
+    // 合成拋殼飛散初速度衝量
+    Vector vecShellVelocity = ( gpGlobals->v_right * flRandRight ) + 
+                              ( gpGlobals->v_forward * flRandForward ) + 
+                              ( gpGlobals->v_up * flRandUp );
+
+    // 📐 完美還原槍身右側拋殼窗的幾何偏置：將發射點向前方外推 8 碼，防範內置穿模 Bug
+    Vector vecEjectOrigin = vecShootOrigin + ( gpGlobals->v_forward * 8.0f );
+
+    // 呼叫粒子特效工廠，在半空中向右後方拋射出一枚黃銅步槍彈殼 (1 = TE_BOUNCE_SHELL)
+    EjectBrass( vecEjectOrigin, vecShellVelocity, pev->angles.y, m_iBrassShell, TE_BOUNCE_SHELL ); 
+
+    // 發射音軌：AWP 重型麥格農全地圖無衰減硬核轟鳴 (ATTN_NONE = 0.0f, VOL_NORM = 1.0f)
+    EMIT_SOUND_DYN( edict(), CHAN_WEAPON, "weapons/awp1.wav", VOL_NORM, ATTN_NONE, 0, PITCH_NORM );
+}
+
+void CTerrorist::SpeakSentence( void )
+{
+    // =========================================================================
+    // ⏱️ 1. 語音隊列與全局擁擠鎖審查：有排隊對白，且全局語音通道正處於空閒放行態
+    // =========================================================================
+    if ( m_iSentence != -1 && gpGlobals->time > CTalkMonster::g_talkWaitTime )
+    {
+        // 🔒 2. 戰術活性消音鎖審查：若此時正被閃光致盲、或處於索降下墜期，攔截格式化
+        if ( FOkToSpeak() )
+        {
+            // 🚀 從全局指標陣列 pTerroristSentences 中實時提取對白字串，呼叫 102 號虛擬方法 PlaySentence 點火發射！
+            // 音量與衰減係數配置為經典的 0.8f (0x3F4CCCCD) 常數基準面
+            PlaySentence( pTerroristSentences[m_iSentence], 0.8f, ATTN_NORM, 0, m_voicePitch );
+
+            // =========================================================================
+            // ⚙️ 3. 大腦清洗與 8~15 秒蒙地卡羅動態冷卻填裝 (100% 對齊二進位行為)
+            // =========================================================================
+            m_iSentence = -1; // 對白句柄徹底清洗重置，釋放發聲信道
+            
+            float flRandomCooldown = RANDOM_FLOAT( 8.0f, 15.0f );
+            CTalkMonster::g_talkWaitTime = gpGlobals->time + flRandomCooldown; // 格式化鎖死全局
+        }
+    }
+}
+
+void CTerrorist::StartTask( Task_t *pTask )
+{
+    m_iTaskStatus = TASKSTATUS_RUNNING; // 1
+
+    switch ( pTask->iTask )
+    {
+        // =========================================================================
+        // 🪂 任務 18 & 20：常規路徑運動 (100% 還原直升機索降下墜滑翔覆寫 ACT_GLIDE)
+        // =========================================================================
+        case 28: // 0x1C: TASK_WALK_PATH
+        case 30: // 0x1E: TASK_RUN_PATH
+            if ( m_cantMove < 2 || m_MonsterState == MONSTERSTATE_DEAD )
+            {
+                CSquadMonster::StartTask( pTask );
+
+                // 📐 幾何防穿模黑科技：若當前處於 MOVETYPE_FLY (5) 索降空中懸空期
+                if ( pev->movetype == MOVETYPE_FLY )
+                {
+                    m_IdealActivity = ACT_GLIDE; // 強鎖單手控繩索降空中滑翔動作
+                }
+                return;
+            }
+            break;
+
+        // =========================================================================
+        // ⚙️ 任務 38 (0x26)：原子任務換彈點火
+        // =========================================================================
+        case 38: // 0x26: TASK_RELOAD
+            m_IdealActivity = ACT_RELOAD;
+            return;
+
+        // =========================================================================
+        // 📢 任務 93 (0x5D)：延時對白隊列發射中樞
+        // =========================================================================
+        case 93: // 0x5D
+            SpeakSentence(); // 呼叫排隊發聲暫存器
+            break;
+
+        // =========================================================================
+        // 🔫 任務 94 (0x5E)：友傷大腦視線掃描
+        // =========================================================================
+        case 94: // 0x5E
+            // 審查開火線上是否有同伴，若有，強行打上 bits_COND_NO_FIRE (0x10000000) 熔斷不開火
+            if ( !CSquadMonster::NoFriendlyFire() )
+            {
+                m_afConditions |= 0x10000000;
+            }
+            if ( m_afConditions & 0x40000000 ) // FAILED 標記過濾
+            {
+                return;
+            }
+            // 暢通無阻，任務瞬間成功
+            m_iTaskStatus = TASKSTATUS_COMPLETE; // 4
+            return;
+
+        // =========================================================================
+        // 🧱 任務 95 (0x5F)：戰術掩體節點推進尋路
+        // =========================================================================
+        case 95: // 0x5F
+            if ( m_pSpecialCoverNode == nullptr || !FValidateCoverNode( m_pSpecialCoverNode ) ) // 虛擬表偏移 0x1c0
+            {
+                m_afConditions |= 0x40000000; // 節點卡死，標記任務失敗
+                return;
+            }
+            // 拉起尋路網格，全速狂奔向掩體幾何座標
+            if ( !CBaseMonster::MoveToLocation( ACT_RUN, 0.0f, m_pSpecialCoverNode->m_vecOrigin ) )
+            {
+                ALERT( at_console, "FAILED MOVING TO LOCATION.\n" );
+                m_afConditions |= 0x40000000; // 尋路車禍，停機
+                return;
+            }
+            break;
+
+        // =========================================================================
+        // 🏃 任務 96 (0x60)：8號馬刀/9號自殺兵 獵人衝鋒任務起跑點
+        // =========================================================================
+        case 96: // 0x60: TASK_CHARGE_ENEMY
+            if ( m_cantMove == 0 && m_hEnemy != nullptr )
+            {
+                // 計算與玩家在 2D 平面的起跑相對物理距離
+                float flDistToEnemy = ( m_hEnemy->pev->origin - pev->origin ).Length2D();
+
+                // 📐 只有當距離大於 64 碼死線時，才允許發動全速追殺
+                if ( flDistToEnemy >= 64.0f )
+                {
+                    m_vecMoveGoal = m_hEnemy->pev->origin; // 強寫目標點為玩家腳底板
+                    
+                    if ( CBaseMonster::MoveToEnemy( ACT_RUN, 0.0f ) )
+                    {
+                        return; // 成功開闢衝鋒路由，放行交給每幀更新
+                    }
+                    m_afConditions |= 0x40000000; // 路由崩潰，失敗
+                    return;
+                }
+            }
+            break;
+
+        // =========================================================================
+        // 🎲 任務 97 (0x61)：日常隨機 8 方向無目的漫步閒逛
+        // =========================================================================
+        case 97: // 0x61
+            if ( !CBaseMonster::MoveToLocation( ACT_WALK, 0.0f, m_wanderOrigin ) )
+            {
+                m_afConditions |= 0x40000000;
+                return;
+            }
+            break;
+
+        // 通用原子任務與常規 HECU 陸軍計畫降級派發
+        case 18: // 0x12
+        case 19: // 0x13
+            m_afMemory &= ~0x00000002; // 清空特定的記憶體標記槽
+        default:
+            CSquadMonster::StartTask( pTask );
+            return;
+    }
+
+    // 🚀 終端收尾：若開局首幀未被任何硬條件打上 0x40000000 失敗鎖，直接將任務推進至成功，移交每幀 Task
+    if ( !( m_afConditions & 0x40000000 ) )
+    {
+        m_iTaskStatus = TASKSTATUS_COMPLETE; // 4
+    }
+}
+
+int CTerrorist::TakeDamage( entvars_t *pevInflictor, entvars_t *pevAttacker, float flDamage, int bitsDamageType )
+{
+    // 開局格式化：清空 HECU 陸軍體系的特定記憶體暫存器，防範行為殘留
+    m_afMemory &= ~0x00000002; 
+
+    float flFinalDamage = flDamage;
+
+    // =========================================================================
+    // 🥷 1. 潛行背刺暗殺審查：若攻擊者為反恐精英玩家本身 (ClassName == "player")
+    // =========================================================================
+    if ( pevAttacker != nullptr && strcasecmp( STRING(pevAttacker->classname), "player" ) == 0 )
+    {
+        // 只有當恐怖份子處於放鬆巡邏、尚未鎖定任何宿敵警戒的狀態下 (m_hEnemy == nullptr)
+        if ( m_hEnemy == nullptr )
+        {
+            // 獲取地圖 1 號玩家的 CBasePlayer 實體私有私有數據指針
+            edict_t *pPlayerEdict = INDEX_TO_ENT( 1 );
+            if ( pPlayerEdict == nullptr || pPlayerEdict->pvPrivateData == nullptr )
+            {
+                pPlayerEdict = PEOFFSET( 0 );
+            }
+
+            if ( pPlayerEdict != nullptr && pPlayerEdict->pvPrivateData != nullptr )
+            {
+                CBasePlayer *pPlayer = (CBasePlayer *)CBaseEntity::Instance( pPlayerEdict );
+
+                if ( pPlayer != nullptr )
+                {
+                    // 🚀 跨類別強讀：調用玩家大腦，獲取當前手持武器名字串
+                    const char *pszActiveWeapon = pPlayer->GetActiveWeaponClassname();
+
+                    if ( pszActiveWeapon != nullptr && strcasecmp( pszActiveWeapon, "weapon_knife" ) == 0 )
+                    {
+                        // 🎰 完美還原二進位行為：打上安靜倒地標記，並強寫 105.0f 暴擊傷害，實現一刀割喉潛行殺！
+                        stealthDeath   = TRUE;
+                        flFinalDamage  = 105.0f; 
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // 🎯 2. 仇恨即時追尾同步：若尚未接敵，被子彈或攻擊打中的一瞬間，立刻零延遲鎖死攻擊者
+    // =========================================================================
+    if ( m_hEnemy == nullptr && pevAttacker != nullptr )
+    {
+        edict_t *pAttackerEdict = pevAttacker->pContainingEntity;
+        if ( pAttackerEdict == nullptr )
+        {
+            pAttackerEdict = PEOFFSET( 0 );
+        }
+
+        if ( pAttackerEdict != nullptr && pAttackerEdict->pvPrivateData != nullptr )
+        {
+            // 實時將攻擊者 C++ 物件指針拷貝注入 m_hEnemy 暫存器中
+            m_hEnemy = CBaseEntity::Instance( pAttackerEdict );
+        }
+    }
+
+    // =========================================================================
+    // 🧱 3. 降級派發：將最終解算後的傷害數值移交怪物母體基類，引爆常規扣血與慘叫
+    // =========================================================================
+    return CBaseMonster::TakeDamage( pevInflictor, pevAttacker, flFinalDamage, bitsDamageType );
+}
+
+void CTerrorist::TraceAttack( entvars_t *pevAttacker, float flDamage, Vector vecDir, TraceResult *ptr, int bitsDamageType )
+{
+    // =========================================================================
+    // 📐 100% 還原二進位幾何暫存器棧對齊行為
+    // 將子彈入射方向向量 (vecDir) 安全打包，原封不動移交母體基類進行 Hitbox 擊中骨骼反查
+    // =========================================================================
+    CSquadMonster::TraceAttack( pevAttacker, flDamage, vecDir, ptr, bitsDamageType );
+}
+
+void CTerrorist::UseTarget( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value )
+{
+    // =========================================================================
+    // 📡 100% 還原二進位行為：死後遺言劇本連動中樞
+    // 若地圖設計師配置了當前匪徒死後的觸發目標名稱 (m_useTarget)
+    // =========================================================================
+    if ( m_useTarget != 0 )
+    {
+        // 🚀 一鍵引爆全伺服器實體通信信號喇叭 (FireTargets)
+        // 將死後遺言字串、攻擊者指針、與 USE_ON/OFF 信號打包射出，瞬間拉起地圖過場劇情！
+        FireTargets( STRING( m_useTarget ), pActivator, this, useType, value );
+    }
+}
+
+bool CTerrorist::ValidateActivation( int entry )
+{
+    // =========================================================================
+    // 🎰 100% 還原二進位行為：4 大位移型高級戰術計畫下盤物理定身鎖審查
+    // =========================================================================
+    switch ( entry )
+    {
+        case 18: // 0x12: SCHED_TAKE_COVER_FROM_ENEMY (戰術尋找掩體規避)
+        case 50: // 0x32: SCHED_FLANK_ATTACK          (側翼戰術繞後包抄)
+        case 64: // 0x40: SCHED_CORNER_COVER_NODE     (拐角掩體節點卡點)
+        case 66: // 0x42: SCHED_CHARGE_ENEMY          (馬刀/自殺神風狂暴衝鋒)
+            
+            // 🔒 幾何安全熔斷：若當前被地形道具、閃光震撼或非同步索降定身 (m_cantMove != 0)
+            // 則尋路宣告不可行，返回 false 熔斷沒收計畫，防止降智卡死！
+            return ( m_cantMove == 0 );
+
+        default:
+            break;
+    }
+
+    // 其餘原地射擊、換彈、日常對白等靜態計畫，無條件放行可行性
+    return true;
+}

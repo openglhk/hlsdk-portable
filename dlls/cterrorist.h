@@ -1,4 +1,3 @@
-#pragma once
 #include "extdll.h"
 #include "util.h"
 #include "cbase.h"
@@ -6,9 +5,6 @@
 #include "squadmonster.h" 
 #include "schedule.h"
 
-// =========================================================================
-// 🚀 外部全局計畫物件與台詞池宣告歸位
-// =========================================================================
 extern Schedule_t slCTIdleEyecontact;
 extern Schedule_t slCTCombatFace;
 extern Schedule_t slCTVictoryDance;
@@ -55,23 +51,15 @@ struct ScheduleEntry {
     float normalizedChance;
 };
 
-// 💡 提示：g_fCTQuestion 變數已被移至 ct_swat.cpp 頂部，徹底根絕重複定義編譯 Bug
-
-// 前置宣告潛行觸發器類別，防止編譯器報錯
 class CTriggerStealth {
 public:
     static BOOL IsPlayerHidden( CTriggerStealth *pTrigger );
 };
 
-// =========================================================================
-// 💂‍♂️ 主體類別宣告：反恐精英小隊特警 (CMonsterCtSwat)
-// =========================================================================
-class CMonsterCtSwat : public CSquadMonster
+class CCounterTerrorist : public CSquadMonster
 {
 public:
     CMonsterCtSwat();
-
-    // 基礎虛擬方法覆寫 (Engine / Base Framework 回調)
     void Spawn( void ) override;
     void KeyValue( KeyValueData *pkvd ) override;
     int  Save( CSave &save ) override;
@@ -94,8 +82,6 @@ public:
     Vector GetGunPosition( void ) override;
     void IdleHeadTurn( Vector *vecFriend ) override;
     void ResetHeadWatch( void );
-
-    // 戰術與攻擊評估方法覆寫
     BOOL CheckMeleeAttack1( float flDot, float flDist ) override;
     BOOL CheckRangeAttack1( float flDot, float flDist ) override;
     BOOL CheckRangeAttack2( float flDot, float flDist ) override;
@@ -108,8 +94,6 @@ public:
     int  LookupActivityHeaviest( int activity ) override;
     void SetActivity( Activity NewActivity ) override;
     void SetYawSpeed( void ) override;
-    
-    // 自定義戰術配置工廠接口
     void SpawnInit( void ); 
     void ActivateTableEntry( int entry );
     void ClearScheduleTableFlags( void );
@@ -128,9 +112,7 @@ public:
     Schedule_t* ScheduleFromName( const char *pName ) override;
     void StartTask( Task_t *pTask ) override;
     void RunTask( Task_t *pTask ) override;
-    
 private:
-    // ⚔️ 輕重武器骨骼動畫子系統映射接口
     int   SetActivityPistolBase( Activity NewActivity );
     int   SetActivityShotgunBase( Activity NewActivity );
     int   SetActivityAutomaticBase( Activity NewActivity );
@@ -138,28 +120,20 @@ private:
     int   SetActivityLAWBase( Activity NewActivity );
     int   SetActivityGrenadeBase( Activity NewActivity );
     float GetActivityYawSpeed( Activity NewActivity );
-
-    // 📡 計畫決策樹與戰術分流子模組
     int   GetBehaviorType( void );
     int   GetForcedTargetSchedule( void );
     int   GetFlyingSchedule( void );
     int   GetHearingSchedule( void );
     int   GetScheduleFromTable( void );
-
-    // 🔴 狙擊手紅外線雷射特效裝配接口
     void  LaserGlowOn( void );
     void  LaserGlowOff( void );
     void  SetupLaserGlow( void ); 
-
-    // 戰術降噪與無線電排隊發射器
     void  LimitFollowers( CBaseEntity *pPlayer, int maxFollowers );
     void  HandleSpeaking( int schedule );
     void  JustSpoke( float nextSpeakTime );
     void  SpeakSentence( void );
     int   GetWeaponEffectSchedule( void );
     Schedule_t* HandleFollowing( void );
-
-    // 近戰飛踢與全武武裝射擊火網子矩陣
     CBaseEntity* Kick( void );
     void  ShootPistol( void );
     void  ShootShotgun( void );
@@ -169,29 +143,19 @@ private:
     void  ShootLAW( void );
     void  ShootSMG( void );
     void  ShootMP5( void );
-
-    // =========================================================================
-    // 🔓 記憶體對齊封裝：必須與 Linux server.so 二進位空間毫釐不差！
-    // =========================================================================
     int            m_ctBehavior;       
     int            m_behaviorType;     
-    
-    // ⚠️ 記憶體核心對齊陣列：精確排在 m_flNextGrenadeCheck 之前！
     ScheduleEntry  scheduleTable[74];  
-
     float          m_flNextGrenadeCheck; 
     float          m_flNextPainTime;
     int            m_iSentence;
     int            m_fFirstEncounter;
     float          m_healthMultiplier; 
-
     int            m_ctType;         
     string_t       m_language;       
     int            m_cantMove;       
-
     CBaseEntity*   m_pBeam;          
     CBaseEntity*   m_pLaserGlow;      
-
     int            m_voicePitch;
     int            m_iBrassShell;
     int            m_iShotgunShell;
@@ -203,35 +167,21 @@ private:
     unsigned short m_usFireMAC10;
     unsigned short m_usFireShotgun;
     unsigned short m_usFireMP5;
-
-    // 投擲物拋射評估暫存器
     BOOL           m_fThrowGrenade;    
     Vector         m_vecTossVelocity;  
-    
-    // 陣營與地圖強制目標
     int            m_classtype;        
     string_t       m_forcedTarget;     
-    
-    // 動態姿態與日常巡邏冷卻
     BOOL           m_bStanding;
     float          m_flStopTalkTime;   
     float          m_wanderTime;       
     BOOL           m_canWander;        
     Vector         m_wanderOrigin;     
-    
-    // 戰術推進與小隊索敵警報標記
     BOOL           justShotFlag;       
     float          m_fPreferedRange;   
     float          taskFailCount;      
-    
-    // 👀 眼神對視、小隊共用目擊時鐘與跟隨狀態
     BOOL           m_bFollowStuck;     
     int            m_iWeaponEffectType;   
     BOOL           m_bWeaponEffectActive; 
-
-    // =========================================================================
-    // 🔓 🚀 終極修復：以下為填補被截斷缺失的最後核心拼圖，達成大圓滿閉環！
-    // =========================================================================
     int            m_cClipSize;            // 長短槍標準彈匣最大容量基數
     string_t       m_dropItem;             // 死亡時脫手掉落的裝備武器名稱字串索引
     float          m_dropChance;           // 裝備掉落的浮點數機率 (0.0~1.0)
@@ -241,13 +191,61 @@ private:
     float          m_laserBrightness;      // 狙擊手紅外線雷射光束的動態渲染亮度
     float          m_glowBrightness;       // 槍口真實附著紅點精靈的動態渲染亮度
     string_t       m_useTarget;            // 儲存與地圖編輯器對接的遠程事件喚醒目標名稱
-
-    // 28 欄位存檔序列化數據表宣告
     static TYPEDESCRIPTION m_SaveData[];   
-    
-    // 41 容量自定義計畫清單陣列
     static Schedule_t     *m_scheduleList[41]; 
-    
-    // 長槍連續開火動態散佈圓錐向量
     Vector         m_weaponAccuracy;       
+};
+
+class CCounterTerroristGIGN : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;   // 👈 本回解鎖：資源加載閘門完美歸位！
+    void SpawnInit( void );          // 預留下一回合點火中樞
+};
+
+class CCounterTerroristGSG9 : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;   // 👈 本回解鎖：資源加載閘門完美歸位！
+    void SpawnInit( void );          // 預留下一回合點火中樞
+};
+
+class CCounterTerroristSAS : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;   // 👈 本回合解鎖：資源加載完美歸位！
+    void SpawnInit( void );          // 👈 本回合解鎖：外觀固化與英式語系中樞完美歸位！
+};
+
+class CCounterTerroristSpetsnaz : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;   // 👈 本回合解鎖：資源加載完美歸位！
+    void SpawnInit( void );          // 👈 本回合解鎖：外觀固化與俄語語系中樞完美歸位！
+};
+
+class CCounterTerroristSwat : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;   // 👈 123回合解鎖：資源加載完美歸位！
+    void SpawnInit( void );          // 👈 本回合解鎖：外觀固化與美式語系中樞完美歸位！
+};
+
+class CCounterTerroristRepel : public CCounterTerrorist
+{
+public:
+    void Precache( void ) override;                                   // 125回合：資源預載
+    void KeyValue( KeyValueData *pkvd ) override;                     // 126回合：屬性解析
+    int  Save( CSave *save ) override;                                 // 127回合：數據存檔
+    int  Restore( CRestore *restore ) override;                         // 128回合：數據讀檔
+    void Spawn( void ) override;                                      // 129回合：點火點火
+    void RepelUse( CBaseEntity *pActivator, CBaseEntity *pCaller, USE_TYPE useType, float value ); // 👈 世紀大圓滿焊死！！！
+    
+public:
+    int m_iSpriteTexture;           // 繩索紋理暫存器
+    int m_iSkin;                    // 特警自定義皮膚變數
+    int m_iHead;                    // 特警自定義頭盔變數
+    int m_classname;                // 類別名重定向緩衝控制暫存器
+    
+    static TYPEDESCRIPTION m_SaveData[]; // 序列化描述段
 };

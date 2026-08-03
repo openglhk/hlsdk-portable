@@ -146,7 +146,9 @@ set (SVDLL_SOURCES
 	czds_sequence.cpp
 	env_liveammoshooter.cpp
 	cterrorist.cpp
+	cterrorist_variants.cpp
 	terrorist.cpp
+	terrorist_variants.cpp
 	ct_repel.cpp
 	hostage.cpp
 	hostage_rescue.cpp
