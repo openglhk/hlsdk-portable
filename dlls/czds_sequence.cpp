@@ -40,11 +40,11 @@ void CZDS_SequenceManager::LoadAllSequences()
     if (gpGlobals->mapname == 0) return;
     std::string mapName = STRING(gpGlobals->mapname);
 
-    std::string filepath = "czero/sequences/" + mapName + ".seq";
+    std::string filepath = "czeror/sequences/" + mapName + ".seq";
     std::ifstream file(filepath);
 	
     if (!file.is_open()) {
-        ALERT(at_console, "CZDS_Parser: 找不到該地圖的劇本檔案 (%s 或 %s.seq)！\n", mapName.c_str(), mapName.c_str());
+        ALERT(at_console, "CZDS_Parser: Cannot find the script file for this map (%s or %s.seq)!\n", mapName.c_str(), mapName.c_str());
         return;
     }
 
@@ -53,7 +53,7 @@ void CZDS_SequenceManager::LoadAllSequences()
     sequenceCommandLine_s* pLastCmd = nullptr;
     std::string currentSpeaker = "none";
 
-    ALERT(at_console, "CZDS_Parser: 偵測到地圖切換，正在動態加載劇本: %s...\n", filepath.c_str());
+    ALERT(at_console, "CZDS_Parser: Map switch detected, dynamically loading script: %s...\n", filepath.c_str());
 
     while (std::getline(file, line)) 
     {
@@ -126,7 +126,7 @@ void CZDS_SequenceManager::LoadAllSequences()
         }
     }
     file.close();
-    ALERT(at_console, "CZDS_Parser: 地圖 %s 的劇本加載成功！\n", mapName.c_str());
+    ALERT(at_console, "CZDS_Parser: Script for map %s loaded successfully!\n", mapName.c_str());
 }
 
 sequenceEntry_s* CZDS_SequenceManager::GetSequence(const char* name) 
