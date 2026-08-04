@@ -1,5 +1,10 @@
+#include "extdll.h"
+#include "util.h"
+#include "cbase.h"
+#include "monsters.h"
 #include "terrorist.h"
 
+//not exist
 LINK_ENTITY_TO_CLASS( monster_terrorist, CTerrorist );
 LINK_ENTITY_TO_CLASS( monster_terrorist_pistol, CTerrorist );
 LINK_ENTITY_TO_CLASS( monster_terrorist_shotgun, CTerrorist );

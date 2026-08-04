@@ -37,8 +37,6 @@ void CTerroristArctic::SpawnInit( void )
     }
 }
 
-LINK_ENTITY_TO_CLASS( monster_terrorist_arctic, CTerroristArctic );
-
 static void CreateArcticVariant(entvars_t *pev, const char *pszClassName)
 {
     if (pev == nullptr)
@@ -66,7 +64,7 @@ static void CreateArcticVariant(entvars_t *pev, const char *pszClassName)
         return;
     }
 
-    pArctic->CTerrorist::CTerrorist();
+    pArctic->CTerroristArctic::CTerroristArctic();
 
     pev->classname = ALLOC_STRING(pszClassName);
     pEdict->pvPrivateData = pArctic;
@@ -77,58 +75,70 @@ extern "C" void monster_terrorist_arctic(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic, monster_terrorist_arctic );
 
 extern "C" void monster_terrorist_arctic_assaultrifle(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_assaultrifle");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_assaultrifle, monster_terrorist_arctic_assaultrifle );
 
 extern "C" void monster_terrorist_arctic_grenader(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_grenader");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_grenader, monster_terrorist_arctic_grenader );
 
 extern "C" void monster_terrorist_arctic_kamakazi(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_kamakazi");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_kamakazi, monster_terrorist_arctic_kamakazi );
 
 extern "C" void monster_terrorist_arctic_law(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_law");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_law, monster_terrorist_arctic_law );
 
 extern "C" void monster_terrorist_arctic_machinegun(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_machinegun");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_machinegun, monster_terrorist_arctic_machinegun );
 
 extern "C" void monster_terrorist_arctic_melee(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_melee");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_melee, monster_terrorist_arctic_melee );
 
 extern "C" void monster_terrorist_arctic_mp5(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_mp5");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_mp5, monster_terrorist_arctic_mp5 );
 
 extern "C" void monster_terrorist_arctic_pistol(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_pistol");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_pistol, monster_terrorist_arctic_pistol );
 
 extern "C" void monster_terrorist_arctic_shotgun(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_shotgun");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_shotgun, monster_terrorist_arctic_shotgun );
 
 extern "C" void monster_terrorist_arctic_smg(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_smg");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_smg, monster_terrorist_arctic_smg );
 
 extern "C" void monster_terrorist_arctic_sniperrifle(entvars_t *pev)
 {
     CreateArcticVariant(pev, "monster_terrorist_arctic_sniperrifle");
 }
+LINK_ENTITY_TO_FUNCPTR( monster_terrorist_arctic_sniperrifle, monster_terrorist_arctic_sniperrifle );

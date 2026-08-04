@@ -83,7 +83,12 @@ enum sbar_data
 };
 
 #define CHAT_INTERVAL 1.0f
-
+class CTriggerStealth;
+class CBasePlayer : public CBaseMonster {
+public:
+    // ... 其餘變數成員 ...
+    CTriggerStealth* m_pStealthTrigger;
+};
 class CBasePlayer : public CBaseMonster
 {
 public:
