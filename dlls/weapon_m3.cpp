@@ -21,17 +21,20 @@ public:
     void Reload( void ) override;
     void WeaponIdle( void ) override;
 public:
-    int            iShellOn;
-    int            m_iShell;
+	int m_iShell;
     unsigned short m_usFireM3;
     float          m_flPumpTime;
 public:
     static TYPEDESCRIPTION m_SaveData[];
 };
 
+LINK_ENTITY_TO_CLASS(weapon_m3, CM3);
+
 TYPEDESCRIPTION CM3::m_SaveData[] =
 {
     DEFINE_FIELD( CM3, m_fInSpecialReload, FIELD_INTEGER ),
+    DEFINE_FIELD( CM3, m_flPumpTime, FIELD_TIME ),
+    DEFINE_FIELD( CM3, m_flNextReload, FIELD_TIME ),
 };
 
 int CM3::Save( CSave *save )
@@ -273,7 +276,6 @@ void CM3::SecondaryAttack( void )
 
 void CM3::Spawn( void )
 {
-    pev->classname = ALLOC_STRING( "weapon_m3" );
     Precache();
     m_iId = 15;
     SET_MODEL( edict(), "models/w_m3.mdl" );
@@ -338,32 +340,3 @@ void CM3::WeaponIdle( void )
 
     Reload();
 }
-
-extern "C" void weapon_m3( entvars_t *pev )
-{
-    if ( pev == nullptr )
-    {
-        edict_t *pNewEdict = CREATE_ENTITY();
-        if (pNewEdict != nullptr) pev = &pNewEdict->v;
-        else return;
-    }
-
-    edict_t *pEdict = pev->pContainingEntity;
-    if ( pEdict != nullptr && pEdict->pvPrivateData != nullptr )
-    {
-        return;
-    }
-
-    CM3 *pM3 = (CM3 *)pfnPvAllocEntPrivateData( pEdict, sizeof(CM3) );
-    if ( pM3 == nullptr )
-    {
-        return;
-    }
-
-    pM3->CM3::CM3();
-
-    pev->classname = ALLOC_STRING( "weapon_m3" );
-    pEdict->pvPrivateData = pM3;
-    pM3->pev = pev;
-}
-LINK_ENTITY_TO_FUNCPTR( weapon_m3, weapon_m3 );

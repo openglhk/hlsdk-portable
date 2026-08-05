@@ -10,13 +10,14 @@ public:
     void Precache(void) override;
     int GetItemInfo(ItemInfo *p) override;
     BOOL Deploy(void) override;
-	int  Save( CSave *save ) override;
-	int  Restore( CRestore *restore ) override;
+    int  Save( CSave *save ) override;
+    int  Restore( CRestore *restore ) override;
     float GetMaxSpeed( void ) override;
-	int  iItemSlot( void ) override;
+    int  iItemSlot( void ) override;
+    void AK47Fire( float flSpread, float flCycleTime, BOOL fUseAutoAim );
     void PrimaryAttack(void) override;
-	void SecondaryAttack( void ) override;
-	BOOL UseDecrement( void ) override;
+    void SecondaryAttack( void ) override;
+    BOOL UseDecrement( void ) override;
     void Reload(void) override;
     void WeaponIdle(void) override;
 public:
@@ -28,10 +29,30 @@ public:
     static TYPEDESCRIPTION m_SaveData[];
 };
 
+LINK_ENTITY_TO_CLASS(weapon_ak47, CAK47);
+
 TYPEDESCRIPTION CAK47::m_SaveData[] =
 {
-    DEFINE_FIELD( CAK47, iShellOn, FIELD_INTEGER ),
+    DEFINE_FIELD( CAK47, m_iShotsFired, FIELD_INTEGER ),
+    DEFINE_FIELD( CAK47, m_flAccuracy, FIELD_FLOAT ),
+    DEFINE_FIELD( CAK47, m_bDelayFire, FIELD_BOOLEAN ),
 };
+
+void CAK47::Spawn(void)
+{
+    Precache();
+    m_iId = 21;
+    SET_MODEL(ENT(pev), "models/w_ak47.mdl");
+    m_iShotsFired = 0;
+    m_iDefaultAmmo = 30;
+    m_flAccuracy = 0.2;
+    m_bIsAccessory = 0;
+    
+    // 補上這行，避免讀取隨機記憶體導致遊戲崩潰
+    m_iPrimaryAmmoType = m_iId; 
+    
+    FallInit();
+}
 
 int CAK47::Save( CSave *save )
 {
@@ -69,20 +90,15 @@ void CAK47::Precache( void )
     m_usFireAK47 = PRECACHE_EVENT( 1, "events/ak47.sc" );
 }
 
-BOOL CAK47::Deploy(void)
+BOOL CAK47::Deploy()
 {
     m_iShotsFired = 0;
-    iShellOn = 1;
-    m_flAccuracy = 0.2f;
+    this->iShellOn = 1;
+    m_flAccuracy = 0.2;
 
-    BOOL bHasAmmo = TRUE;
-    if (!HasAmmo())
-    {
-        bHasAmmo = FALSE;
-    }
-
-    return DefaultDeploy("models/v_ak47.mdl", nullptr, 2, "ak47", bHasAmmo);
+    return DefaultDeploy("models/v_ak47.mdl", nullptr, 2, "ak47", UseDecrement() != FALSE);
 }
+
 
 int CAK47::GetItemInfo( ItemInfo *p )
 {
@@ -291,38 +307,3 @@ BOOL CAK47::UseDecrement( void )
 {
     return TRUE;
 }
-
-extern "C" void weapon_ak47(entvars_t *pev)
-{
-    if (pev == nullptr)
-    {
-        edict_t *pNewEdict = CREATE_ENTITY();
-        if (pNewEdict != nullptr)
-        {
-            pev = &pNewEdict->v;
-        }
-        else
-        {
-            return;
-        }
-    }
-
-    edict_t *pEdict = pev->pContainingEntity;
-    if (pEdict != nullptr && pEdict->pvPrivateData != nullptr)
-    {
-        return;
-    }
-
-    CAK47 *pAK47 = (CAK47 *)pfnPvAllocEntPrivateData(pEdict, 284);
-    if (pAK47 == nullptr)
-    {
-        return;
-    }
-
-    pAK47->CAK47::CAK47();
-
-    pev->classname = ALLOC_STRING("weapon_ak47");
-    pEdict->pvPrivateData = pAK47;
-    pAK47->pev = pev;
-}
-LINK_ENTITY_TO_FUNCPTR(weapon_ak47, weapon_ak47);
