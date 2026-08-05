@@ -44,20 +44,19 @@ TYPEDESCRIPTION CM4A1::m_SaveData[] =
     DEFINE_FIELD( CM4A1, m_iWeaponState, FIELD_INTEGER )
 };
 
-void CM4A1::Spawn( void )
+void CM4A1::Spawn(void)
 {
     Precache();
-    m_iId = 22;
-    SET_MODEL( ENT( pev ), "models/w_m4a1.mdl" );
+
+    m_iId = WEAPON_M4A1;
+    SET_MODEL(ENT(pev), "models/w_m4a1.mdl");
+
     m_iShotsFired = 0;
     m_iDefaultAmmo = 30;
     m_flAccuracy = 0.2f;
-    m_bDelayFire = TRUE;
-    m_bIsAccessory = FALSE;
-    
-    // 初始化彈藥索引，防止扣除彈藥時崩潰
-    m_iPrimaryAmmoType = m_iId; 
-    
+    m_bDelayFire = true;
+    m_bIsAccessory = false;
+
     FallInit();
 }
 

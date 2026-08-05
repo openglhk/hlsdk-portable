@@ -150,8 +150,8 @@ set (SVDLL_SOURCES
 	terrorist.cpp
 	terrorist_variants.cpp
 	..
-	weapon_m3.cpp
-	weapon_ak47.cpp
+	cgrenade.cpp
+	wpn\
 	ct_repel.cpp
 	hostage.cpp
 	hostage_rescue.cpp

@@ -25,6 +25,7 @@ public:
     int            m_iShell;
     unsigned short m_usFireAK47;
     int            m_iPrimaryAmmoType;
+	BOOL           m_bDelayFire;
 public:
     static TYPEDESCRIPTION m_SaveData[];
 };
@@ -41,37 +42,16 @@ TYPEDESCRIPTION CAK47::m_SaveData[] =
 void CAK47::Spawn(void)
 {
     Precache();
-    m_iId = 21;
+
+    m_iId = WEAPON_AK47;
     SET_MODEL(ENT(pev), "models/w_ak47.mdl");
+
     m_iShotsFired = 0;
     m_iDefaultAmmo = 30;
-    m_flAccuracy = 0.2;
-    m_bIsAccessory = 0;
-    
-    // 補上這行，避免讀取隨機記憶體導致遊戲崩潰
-    m_iPrimaryAmmoType = m_iId; 
-    
+    m_flAccuracy = 0.2f;
+    m_bIsAccessory = false;
+
     FallInit();
-}
-
-int CAK47::Save( CSave *save )
-{
-    if ( !CBasePlayerWeapon::Save( save ) )
-    {
-        return 0;
-    }
-
-    return save->WriteFields( "CAK47", this, m_SaveData, ARRAYSIZE( m_SaveData ) );
-}
-
-int CAK47::Restore( CRestore *restore )
-{
-    if ( !CBasePlayerWeapon::Restore( restore ) )
-    {
-        return 0;
-    }
-
-    return restore->ReadFields( "CAK47", this, m_SaveData, ARRAYSIZE( m_SaveData ) );
 }
 
 void CAK47::Precache( void )
@@ -98,7 +78,6 @@ BOOL CAK47::Deploy()
 
     return DefaultDeploy("models/v_ak47.mdl", nullptr, 2, "ak47", UseDecrement() != FALSE);
 }
-
 
 int CAK47::GetItemInfo( ItemInfo *p )
 {
@@ -252,6 +231,26 @@ void CAK47::PrimaryAttack( void )
 void CAK47::SecondaryAttack( void )
 {
     return;
+}
+
+int CAK47::Save( CSave *save )
+{
+    if ( !CBasePlayerWeapon::Save( save ) )
+    {
+        return 0;
+    }
+
+    return save->WriteFields( "CAK47", this, m_SaveData, ARRAYSIZE( m_SaveData ) );
+}
+
+int CAK47::Restore( CRestore *restore )
+{
+    if ( !CBasePlayerWeapon::Restore( restore ) )
+    {
+        return 0;
+    }
+
+    return restore->ReadFields( "CAK47", this, m_SaveData, ARRAYSIZE( m_SaveData ) );
 }
 
 void CAK47::Reload( void )
