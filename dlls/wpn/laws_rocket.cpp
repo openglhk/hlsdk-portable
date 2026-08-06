@@ -47,6 +47,7 @@ void CLawsRocket::Spawn(void)
     SET_MODEL(ENT(pev), "models/lawrocket.mdl");
     UTIL_SetSize(pev, g_vecZero, g_vecZero);
     UTIL_SetOrigin(pev, pev->origin);
+	pev->classname = MAKE_STRING("laws_rocket");
 
     // 1. 綁定火箭彈的狀態機控制流
     SetThink(&CLawsRocket::IgniteThink);
